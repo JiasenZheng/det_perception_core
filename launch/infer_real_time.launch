@@ -1,0 +1,28 @@
+<launch>
+
+    <group ns="cam_1">
+        <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+            <arg name="camera" value="cam_1" />
+            <arg name="serial_no" value="938422073373" />
+            <arg name="enable_pointcloud" value="false" />
+            <arg name="enable_depth" value="true" />
+            <arg name="enable_color" value="true" />
+        </include>
+        <node name="infer_real_time" pkg="det_perception_core" type="infer_real_time" output="screen"/>
+    </group>
+
+    <group ns="cam_2">
+        <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+            <arg name="camera" value="cam_2" />
+            <arg name="serial_no" value="937622070073" />
+            <arg name="enable_pointcloud" value="false" />
+            <arg name="enable_depth" value="true" />
+            <arg name="enable_color" value="true" />
+        </include>
+        <node name="infer_real_time" pkg="det_perception_core" type="infer_real_time" output="screen"/>
+    </group>
+
+    <node name="rqt_gui" pkg="rqt_gui" type="rqt_gui" args =
+    "--perspective-file $(find det_perception_core)/config/rqt/infer_real_time.perspective"/>
+
+</launch>

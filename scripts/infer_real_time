@@ -1,0 +1,42 @@
+#!/usr/bin/python3
+
+"""
+This script is used to infer image in real time.
+"""
+
+import os, cv2
+import rospy 
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge
+from det_img_seg.seg_inference import SegInference
+
+class InferRealTime(SegInference):
+    def __init__(self, model, weights, dataset_dir, image_dir, thing_classes):
+        super(InferRealTime, self).__init__(model, weights, dataset_dir, image_dir, thing_classes)
+        self.bridge = CvBridge()
+        ns = rospy.get_namespace()
+        self.image_sub = rospy.Subscriber( ns + "/" + ns + "/color/image_raw", Image, self.callback)
+        self.image_pub = rospy.Publisher( ns + "/" + ns + "/color/image_seg", Image, queue_size=1)
+    
+    def callback(self, data):
+        # time the following code
+        start = rospy.get_time()
+        cv_image = self.bridge.imgmsg_to_cv2(data)
+        cv_image = self.infer_once(cv_image, show_img = False)
+        image_msg = self.bridge.cv2_to_imgmsg(cv_image, "bgr8")
+        end = rospy.get_time()
+        # rospy.loginfo("Infer time: %f", end - start)
+        self.image_pub.publish(image_msg)
+
+if __name__ == '__main__':
+    rospy.init_node('infer_real_time', anonymous=True)
+    model = "COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml"
+    weights = "/home/jiasen/data/model/mask_rcnn_R_50_FPN_3x"
+    dataset_dir = "/home/jiasen/data/dataset/merged"
+    image_dir = "/home/jiasen/data/dataset/merged/images"
+    thing_classes = ["cheez_it"]
+    infer_real_time = InferRealTime(model, weights, dataset_dir, image_dir, thing_classes)
+    rospy.spin()
+
+
+

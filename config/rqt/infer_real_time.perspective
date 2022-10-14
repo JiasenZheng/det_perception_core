@@ -1,0 +1,474 @@
+{
+  "keys": {},
+  "groups": {
+    "mainwindow": {
+      "keys": {
+        "geometry": {
+          "repr(QByteArray.hex)": "QtCore.QByteArray(b'01d9d0cb00030000000000000000001b0000077f0000043700000000000000400000077f000004370000000000000000078000000000000000400000077f00000437')",
+          "type": "repr(QByteArray.hex)",
+          "pretty-print": "           7   @   7        @   7"
+        },
+        "state": {
+          "repr(QByteArray.hex)": "QtCore.QByteArray(b'000000ff00000000fd000000010000000300000780000003ccfc0100000003fb0000004c007200710074005f0074006f007000690063005f005f0054006f0070006900630050006c007500670069006e005f005f0031005f005f0054006f0070006900630057006900640067006500740100000000000007800000000000000000fc0000000000000780000001c000fffffffc0200000002fc00000016000001e20000005100fffffffc0100000002fb0000005a007200710074005f0069006d006100670065005f0076006900650077005f005f0049006d0061006700650056006900650077005f005f0033005f005f0049006d00610067006500560069006500770057006900640067006500740100000000000002f2000000dd00fffffffb0000005a007200710074005f0069006d006100670065005f0076006900650077005f005f0049006d0061006700650056006900650077005f005f0031005f005f0049006d006100670065005600690065007700570069006400670065007401000002f800000488000000c700fffffffc000001fe000001e40000005100fffffffc0100000002fb0000005a007200710074005f0069006d006100670065005f0076006900650077005f005f0049006d0061006700650056006900650077005f005f0032005f005f0049006d00610067006500560069006500770057006900640067006500740100000000000002f7000000dd00fffffffb0000005a007200710074005f0069006d006100670065005f0076006900650077005f005f0049006d0061006700650056006900650077005f005f0034005f005f0049006d006100670065005600690065007700570069006400670065007401000002fd00000483000000dd00fffffffc00000569000002170000000000fffffffc0200000002fc00000016000003cc0000000000fffffffc0100000001fb0000005a007200710074005f0069006d006100670065005f0076006900650077005f005f0049006d0061006700650056006900650077005f005f0035005f005f0049006d006100670065005600690065007700570069006400670065007401000002b9000004c70000000000000000fc00000016000003cc0000000000fffffffc0100000001fb0000005a007200710074005f0069006d006100670065005f0076006900650077005f005f0049006d0061006700650056006900650077005f005f0036005f005f0049006d006100670065005600690065007700570069006400670065007401000002b9000004c70000000000000000000007800000000000000004000000040000000800000008fc00000001000000030000000100000036004d0069006e0069006d0069007a006500640044006f0063006b00570069006400670065007400730054006f006f006c0062006100720000000000ffffffff0000000000000000')",
+          "type": "repr(QByteArray.hex)",
+          "pretty-print": "                 Lrqt_topic__TopicPlugin__1__TopicWidget                                 Zrqt_image_view__ImageView__3__ImageViewWidget          Zrqt_image_view__ImageView__1__ImageViewWidget              Q                                                                                                                                                                                                                 Zrqt_image_view__ImageView__6__ImageViewWidget                            6MinimizedDockWidgetsToolbar        "
+        }
+      },
+      "groups": {
+        "toolbar_areas": {
+          "keys": {
+            "MinimizedDockWidgetsToolbar": {
+              "repr": "8",
+              "type": "repr"
+            }
+          },
+          "groups": {}
+        }
+      }
+    },
+    "pluginmanager": {
+      "keys": {
+        "running-plugins": {
+          "repr": "{'rqt_image_view/ImageView': [1, 3, 4, 2]}",
+          "type": "repr"
+        }
+      },
+      "groups": {
+        "plugin__rqt_image_view__ImageView__1": {
+          "keys": {},
+          "groups": {
+            "dock_widget__ImageViewWidget": {
+              "keys": {
+                "dock_widget_title": {
+                  "repr": "'Image View'",
+                  "type": "repr"
+                },
+                "dockable": {
+                  "repr": "True",
+                  "type": "repr"
+                },
+                "parent": {
+                  "repr": "None",
+                  "type": "repr"
+                }
+              },
+              "groups": {}
+            },
+            "plugin": {
+              "keys": {
+                "dynamic_range": {
+                  "repr": "False",
+                  "type": "repr"
+                },
+                "max_range": {
+                  "repr": "10.0",
+                  "type": "repr"
+                },
+                "mouse_pub_topic": {
+                  "repr": "'/cam_1/cam_1/color/image_seg_mouse_left'",
+                  "type": "repr"
+                },
+                "num_gridlines": {
+                  "repr": "0",
+                  "type": "repr"
+                },
+                "publish_click_location": {
+                  "repr": "False",
+                  "type": "repr"
+                },
+                "rotate": {
+                  "repr": "0",
+                  "type": "repr"
+                },
+                "smooth_image": {
+                  "repr": "False",
+                  "type": "repr"
+                },
+                "toolbar_hidden": {
+                  "repr": "False",
+                  "type": "repr"
+                },
+                "topic": {
+                  "repr": "'/cam_1/cam_1/color/image_seg'",
+                  "type": "repr"
+                },
+                "zoom1": {
+                  "repr": "False",
+                  "type": "repr"
+                }
+              },
+              "groups": {}
+            }
+          }
+        },
+        "plugin__rqt_image_view__ImageView__2": {
+          "keys": {},
+          "groups": {
+            "dock_widget__ImageViewWidget": {
+              "keys": {
+                "dock_widget_title": {
+                  "repr": "'Image View (2)'",
+                  "type": "repr"
+                },
+                "dockable": {
+                  "repr": "True",
+                  "type": "repr"
+                },
+                "parent": {
+                  "repr": "None",
+                  "type": "repr"
+                }
+              },
+              "groups": {}
+            },
+            "plugin": {
+              "keys": {
+                "dynamic_range": {
+                  "repr": "False",
+                  "type": "repr"
+                },
+                "max_range": {
+                  "repr": "10.0",
+                  "type": "repr"
+                },
+                "mouse_pub_topic": {
+                  "repr": "'/cam_2/cam_2/color/image_raw_mouse_left'",
+                  "type": "repr"
+                },
+                "num_gridlines": {
+                  "repr": "0",
+                  "type": "repr"
+                },
+                "publish_click_location": {
+                  "repr": "False",
+                  "type": "repr"
+                },
+                "rotate": {
+                  "repr": "0",
+                  "type": "repr"
+                },
+                "smooth_image": {
+                  "repr": "False",
+                  "type": "repr"
+                },
+                "toolbar_hidden": {
+                  "repr": "False",
+                  "type": "repr"
+                },
+                "topic": {
+                  "repr": "'/cam_2/cam_2/color/image_raw'",
+                  "type": "repr"
+                },
+                "zoom1": {
+                  "repr": "False",
+                  "type": "repr"
+                }
+              },
+              "groups": {}
+            }
+          }
+        },
+        "plugin__rqt_image_view__ImageView__3": {
+          "keys": {},
+          "groups": {
+            "dock_widget__ImageViewWidget": {
+              "keys": {
+                "dock_widget_title": {
+                  "repr": "'Image View (3)'",
+                  "type": "repr"
+                },
+                "dockable": {
+                  "repr": "True",
+                  "type": "repr"
+                },
+                "parent": {
+                  "repr": "None",
+                  "type": "repr"
+                }
+              },
+              "groups": {}
+            },
+            "plugin": {
+              "keys": {
+                "dynamic_range": {
+                  "repr": "False",
+                  "type": "repr"
+                },
+                "max_range": {
+                  "repr": "10.0",
+                  "type": "repr"
+                },
+                "mouse_pub_topic": {
+                  "repr": "'/cam_1/cam_1/color/image_raw_mouse_left'",
+                  "type": "repr"
+                },
+                "num_gridlines": {
+                  "repr": "0",
+                  "type": "repr"
+                },
+                "publish_click_location": {
+                  "repr": "False",
+                  "type": "repr"
+                },
+                "rotate": {
+                  "repr": "0",
+                  "type": "repr"
+                },
+                "smooth_image": {
+                  "repr": "False",
+                  "type": "repr"
+                },
+                "toolbar_hidden": {
+                  "repr": "False",
+                  "type": "repr"
+                },
+                "topic": {
+                  "repr": "'/cam_1/cam_1/color/image_raw'",
+                  "type": "repr"
+                },
+                "zoom1": {
+                  "repr": "False",
+                  "type": "repr"
+                }
+              },
+              "groups": {}
+            }
+          }
+        },
+        "plugin__rqt_image_view__ImageView__4": {
+          "keys": {},
+          "groups": {
+            "dock_widget__ImageViewWidget": {
+              "keys": {
+                "dock_widget_title": {
+                  "repr": "'Image View (4)'",
+                  "type": "repr"
+                },
+                "dockable": {
+                  "repr": "True",
+                  "type": "repr"
+                },
+                "parent": {
+                  "repr": "None",
+                  "type": "repr"
+                }
+              },
+              "groups": {}
+            },
+            "plugin": {
+              "keys": {
+                "dynamic_range": {
+                  "repr": "False",
+                  "type": "repr"
+                },
+                "max_range": {
+                  "repr": "10.0",
+                  "type": "repr"
+                },
+                "mouse_pub_topic": {
+                  "repr": "'/cam_2/cam_2/color/image_seg_mouse_left'",
+                  "type": "repr"
+                },
+                "num_gridlines": {
+                  "repr": "0",
+                  "type": "repr"
+                },
+                "publish_click_location": {
+                  "repr": "False",
+                  "type": "repr"
+                },
+                "rotate": {
+                  "repr": "0",
+                  "type": "repr"
+                },
+                "smooth_image": {
+                  "repr": "False",
+                  "type": "repr"
+                },
+                "toolbar_hidden": {
+                  "repr": "False",
+                  "type": "repr"
+                },
+                "topic": {
+                  "repr": "'/cam_2/cam_2/color/image_seg'",
+                  "type": "repr"
+                },
+                "zoom1": {
+                  "repr": "False",
+                  "type": "repr"
+                }
+              },
+              "groups": {}
+            }
+          }
+        },
+        "plugin__rqt_image_view__ImageView__5": {
+          "keys": {},
+          "groups": {
+            "dock_widget__ImageViewWidget": {
+              "keys": {
+                "dock_widget_title": {
+                  "repr": "'Image View (5)'",
+                  "type": "repr"
+                },
+                "dockable": {
+                  "repr": "'true'",
+                  "type": "repr"
+                },
+                "parent": {
+                  "repr": "None",
+                  "type": "repr"
+                }
+              },
+              "groups": {}
+            },
+            "plugin": {
+              "keys": {
+                "dynamic_range": {
+                  "repr": "'false'",
+                  "type": "repr"
+                },
+                "max_range": {
+                  "repr": "'10'",
+                  "type": "repr"
+                },
+                "mouse_pub_topic": {
+                  "repr": "'/cam_1/captured_image_mouse_left'",
+                  "type": "repr"
+                },
+                "num_gridlines": {
+                  "repr": "'0'",
+                  "type": "repr"
+                },
+                "publish_click_location": {
+                  "repr": "'false'",
+                  "type": "repr"
+                },
+                "rotate": {
+                  "repr": "'0'",
+                  "type": "repr"
+                },
+                "smooth_image": {
+                  "repr": "'false'",
+                  "type": "repr"
+                },
+                "toolbar_hidden": {
+                  "repr": "'false'",
+                  "type": "repr"
+                },
+                "topic": {
+                  "repr": "'/cam_1/captured_image'",
+                  "type": "repr"
+                },
+                "zoom1": {
+                  "repr": "'false'",
+                  "type": "repr"
+                }
+              },
+              "groups": {}
+            }
+          }
+        },
+        "plugin__rqt_image_view__ImageView__6": {
+          "keys": {},
+          "groups": {
+            "dock_widget__ImageViewWidget": {
+              "keys": {
+                "dock_widget_title": {
+                  "repr": "'Image View (6)'",
+                  "type": "repr"
+                },
+                "dockable": {
+                  "repr": "'true'",
+                  "type": "repr"
+                },
+                "parent": {
+                  "repr": "None",
+                  "type": "repr"
+                }
+              },
+              "groups": {}
+            },
+            "plugin": {
+              "keys": {
+                "dynamic_range": {
+                  "repr": "'false'",
+                  "type": "repr"
+                },
+                "max_range": {
+                  "repr": "'10'",
+                  "type": "repr"
+                },
+                "mouse_pub_topic": {
+                  "repr": "'/cam_2/captured_image_mouse_left'",
+                  "type": "repr"
+                },
+                "num_gridlines": {
+                  "repr": "'0'",
+                  "type": "repr"
+                },
+                "publish_click_location": {
+                  "repr": "'false'",
+                  "type": "repr"
+                },
+                "rotate": {
+                  "repr": "'0'",
+                  "type": "repr"
+                },
+                "smooth_image": {
+                  "repr": "'false'",
+                  "type": "repr"
+                },
+                "toolbar_hidden": {
+                  "repr": "'false'",
+                  "type": "repr"
+                },
+                "topic": {
+                  "repr": "'/cam_2/captured_image'",
+                  "type": "repr"
+                },
+                "zoom1": {
+                  "repr": "'false'",
+                  "type": "repr"
+                }
+              },
+              "groups": {}
+            }
+          }
+        },
+        "plugin__rqt_topic__TopicPlugin__1": {
+          "keys": {},
+          "groups": {
+            "dock_widget__TopicWidget": {
+              "keys": {
+                "dock_widget_title": {
+                  "repr": "'Topic Monitor'",
+                  "type": "repr"
+                },
+                "dockable": {
+                  "repr": "'true'",
+                  "type": "repr"
+                },
+                "parent": {
+                  "repr": "None",
+                  "type": "repr"
+                }
+              },
+              "groups": {}
+            },
+            "plugin": {
+              "keys": {
+                "tree_widget_header_state": {
+                  "repr(QByteArray.hex)": "QtCore.QByteArray(b'000000ff0000000000000001000000000000000001000000000000000000000000000000000000075e000000050101000100000000000000000500000064ffffffff0000008100000003000000050000025b00000001000000030000011600000001000000030000006800000001000000030000003900000001000000030000034c0000000100000003000003e80000000064')",
+                  "type": "repr(QByteArray.hex)",
+                  "pretty-print": "                              d         [           h     9     L        "
+                }
+              },
+              "groups": {}
+            }
+          }
+        }
+      }
+    }
+  }
+}
