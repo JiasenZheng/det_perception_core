@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(det_perception_core)
 
-## Compile as C++11, supported in ROS Kinetic and newer
 add_compile_options(-std=c++17)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -fsee -fomit-frame-pointer -fno-signed-zeros -fno-math-errno -funroll-loops -Wall -Wextra -pedantic")
@@ -12,7 +11,17 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -fsee -fomit-frame-pointer -fno-sign
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
+  std_msgs
+  pcl_conversions
+  pcl_ros
+  sensor_msgs
+  cv_bridge
+  image_transport
 )
+
+find_package(PCL REQUIRED)
+find_package(OpenCV REQUIRED)
+find_package(Eigen REQUIRED)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -104,9 +113,19 @@ catkin_python_setup()
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-#  INCLUDE_DIRS include
-#  LIBRARIES det_perception_core
- CATKIN_DEPENDS roscpp rospy
+ INCLUDE_DIRS 
+  include
+ LIBRARIES 
+  det_perception_core
+ CATKIN_DEPENDS 
+  roscpp 
+  rospy
+  std_msgs
+  pcl_conversions
+  pcl_ros
+  sensor_msgs
+  cv_bridge
+  image_transport
 #  DEPENDS system_lib
 )
 
@@ -117,13 +136,17 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
-# include
+  include
+  include/det_perception_core
   ${catkin_INCLUDE_DIRS}
+  ${PCL_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS}
+  ${EIGEN_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/det_perception_core.cpp
+#   src/colorization.cpp
 # )
 
 ## Add cmake target dependencies of the library
@@ -134,7 +157,7 @@ include_directories(
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-# add_executable(${PROJECT_NAME}_node src/det_perception_core_node.cpp)
+add_executable(colorization src/colorization.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -147,9 +170,12 @@ include_directories(
 # add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
-# target_link_libraries(${PROJECT_NAME}_node
-#   ${catkin_LIBRARIES}
-# )
+target_link_libraries(colorization
+  ${catkin_LIBRARIES}
+  ${PCL_LIBRARIES}
+  ${OpenCV_LIBRARIES}
+  ${EIGEN_LIBRARIES}
+)
 
 #############
 ## Install ##
