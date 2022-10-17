@@ -6,9 +6,12 @@
 
 #include "colorization.hpp"
 
-Colorization::Colorization(ros::NodeHandle nh)
+Colorization::Colorization(ros::NodeHandle nh): 
+m_nh(nh), 
+m_sub_pointcloud(m_nh.subscribe("/livox/lidar", 1, &Colorization::pointcloudCallback, this)), 
+m_sub_image(m_nh.subscribe("/camera/color/image_raw", 1, &Colorization::imageCallback, this)), 
+m_pub_pointcloud(m_nh.advertise<sensor_msgs::PointCloud2>("/livox/colorized", 1))
 {
-    m_nh = nh;
     std::string intrinsic_path = "/home/jiasen/det_ws/src/det_perception_core/config/calib/intrinsic.txt";
     std::string extrinsic_path = "/home/jiasen/det_ws/src/det_perception_core/config/calib/extrinsic.txt";
     m_intrinsic = cv::Mat::zeros(3, 3, CV_64F);
@@ -18,11 +21,6 @@ Colorization::Colorization(ros::NodeHandle nh)
     // // log the matrix
     // ROS_WARN_STREAM("intrinsic matrix: " << m_intrinsic);
     // ROS_WARN_STREAM("extrinsic matrix: " << m_extrinsic);
-    // subscribe to the point cloud and the color image
-    m_sub_pointcloud = m_nh.subscribe("/livox/lidar", 1, &Colorization::pointcloudCallback, this);
-    m_sub_image = m_nh.subscribe("/camera/color/image_raw", 1, &Colorization::imageCallback, this);
-    // publish colorized point cloud
-    m_pub_pointcloud = m_nh.advertise<sensor_msgs::PointCloud2>("/livox/colorized", 1);
 }
 
 Colorization::~Colorization()
@@ -63,7 +61,7 @@ void Colorization::imageCallback(const sensor_msgs::ImageConstPtr& msg)
     m_image = cv_ptr->image;
 }
 
-void Colorization::parseMatrix(std::string path, cv::Mat& matrix)
+void Colorization::parseMatrix(const std::string& path, cv::Mat& matrix)
 {
     std::ifstream file(path);
     std::string line;
@@ -82,8 +80,8 @@ void Colorization::parseMatrix(std::string path, cv::Mat& matrix)
     }
 }
 
-void Colorization::colorizeCloud(cv::Mat image, pcl::PointCloud<pcl::PointXYZI>::Ptr cloud, 
-pcl::PointCloud<pcl::PointXYZRGB>::Ptr colorized_cloud, cv::Mat intrinsic, cv::Mat extrinsic)
+void Colorization::colorizeCloud(const cv::Mat& image, const pcl::PointCloud<pcl::PointXYZI>::Ptr& cloud, 
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr& colorized_cloud, const cv::Mat& intrinsic, const cv::Mat& extrinsic)
 {
     std::vector<cv::Point3f> pts_3d;
     for (size_t i = 0; i < cloud->points.size(); i++)

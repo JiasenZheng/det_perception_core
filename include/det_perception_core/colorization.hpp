@@ -25,9 +25,9 @@ public:
     void run();
     void pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg);
     void imageCallback(const sensor_msgs::ImageConstPtr& msg);
-    void parseMatrix(std::string path, cv::Mat& matrix);
-    void colorizeCloud(cv::Mat image, pcl::PointCloud<pcl::PointXYZI>::Ptr cloud, 
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr colorized_cloud, cv::Mat intrinsic, cv::Mat extrinsic);
+    void parseMatrix(const std::string& path, cv::Mat& matrix);
+    void colorizeCloud(const cv::Mat& image, const pcl::PointCloud<pcl::PointXYZI>::Ptr& cloud, 
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr& colorized_cloud, const cv::Mat& intrinsic, const cv::Mat& extrinsic);
 
 
 private:

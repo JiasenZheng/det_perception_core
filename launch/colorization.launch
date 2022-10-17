@@ -1,7 +1,7 @@
 <launch>
 
     <include file="$(find realsense2_camera)/launch/rs_camera.launch">
-        <arg name="serial_no"             value="938422073382"/>
+        <!-- <arg name="serial_no"             value="938422073382"/> -->
         <arg name="tf_prefix"             value="cam_1"/>
         <arg name="initial_reset"         value="false"/>
         <arg name="reconnect_timeout"     value="6.0"/>
