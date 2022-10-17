@@ -4,8 +4,7 @@
  * @brief colorize the raw point cloud with the color image
  */
 
-#ifndef DET_PERCEPTION_CORE_COLORIZATION_HPP
-#define DET_PERCEPTION_CORE_COLORIZATION_HPP
+#pragma once
 
 #include <ros/ros.h>
 #include <pcl/point_types.h>
@@ -21,7 +20,6 @@ class Colorization
 {
 public:
     Colorization(ros::NodeHandle nh);
-    ~Colorization();
     void run();
     void pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg);
     void imageCallback(const sensor_msgs::ImageConstPtr& msg);
@@ -39,5 +37,3 @@ private:
     cv::Mat m_intrinsic;
     cv::Mat m_extrinsic;
 };
-
-# endif  // DET_PERCEPTION_CORE_COLORIZATION_HPP

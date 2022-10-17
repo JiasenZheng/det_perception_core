@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 3.0.2)
 project(det_perception_core)
 
 add_compile_options(-std=c++17)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -fsee -fomit-frame-pointer -fno-signed-zeros -fno-math-errno -funroll-loops -Wall -Wextra -pedantic")
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -fsee -fomit-frame-pointer -fno-signed-zeros -fno-math-errno -funroll-loops -Wall -Wextra -pedantic")
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -176,6 +176,7 @@ target_link_libraries(colorization
   ${OpenCV_LIBRARIES}
   ${EIGEN_LIBRARIES}
 )
+
 
 #############
 ## Install ##

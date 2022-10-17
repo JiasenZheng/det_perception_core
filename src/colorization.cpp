@@ -8,24 +8,38 @@
 
 Colorization::Colorization(ros::NodeHandle nh): 
 m_nh(nh), 
-m_sub_pointcloud(m_nh.subscribe("/livox/lidar", 1, &Colorization::pointcloudCallback, this)), 
-m_sub_image(m_nh.subscribe("/camera/color/image_raw", 1, &Colorization::imageCallback, this)), 
-m_pub_pointcloud(m_nh.advertise<sensor_msgs::PointCloud2>("/livox/colorized", 1))
+m_sub_pointcloud(m_nh.subscribe("/lidar_0/livox/lidar", 1, &Colorization::pointcloudCallback, this)), 
+m_sub_image(m_nh.subscribe("/cam_0/camera/color/image_raw", 1, &Colorization::imageCallback, this)), 
+m_pub_pointcloud(m_nh.advertise<sensor_msgs::PointCloud2>("/lidar_0/livox/colorized", 1))
 {
-    std::string intrinsic_path = "/home/jiasen/det_ws/src/det_perception_core/config/calib/intrinsic.txt";
-    std::string extrinsic_path = "/home/jiasen/det_ws/src/det_perception_core/config/calib/extrinsic.txt";
     m_intrinsic = cv::Mat::zeros(3, 3, CV_64F);
     m_extrinsic = cv::Mat::zeros(4, 4, CV_64F);
-    parseMatrix(intrinsic_path, m_intrinsic);
-    parseMatrix(extrinsic_path, m_extrinsic);
+    // get extrinsic from parameter server
+    std::vector<double> extrinsic;
+    m_nh.getParam("/cam_0/extrinsic", extrinsic);
+    for (int i = 0; i < 4; i++)
+    {
+        for (int j = 0; j < 4; j++)
+        {
+            m_extrinsic.at<double>(i, j) = extrinsic[i * 4 + j];
+        }
+    }
+    // get intrinsic from parameter server
+    std::vector<double> intrinsic;
+    m_nh.getParam("/cam_0/intrinsic", intrinsic);
+    for (int i = 0; i < 3; i++)
+    {
+        for (int j = 0; j < 3; j++)
+        {
+            m_intrinsic.at<double>(i, j) = intrinsic[i * 3 + j];
+        }
+    }
+
+    // parseMatrix(intrinsic_path, m_intrinsic);
+    // parseMatrix(extrinsic_path, m_extrinsic);
     // // log the matrix
     // ROS_WARN_STREAM("intrinsic matrix: " << m_intrinsic);
     // ROS_WARN_STREAM("extrinsic matrix: " << m_extrinsic);
-}
-
-Colorization::~Colorization()
-{
-
 }
 
 void Colorization::run()
