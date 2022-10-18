@@ -7,16 +7,18 @@
 #include "colorization.hpp"
 
 Colorization::Colorization(ros::NodeHandle nh): 
-m_nh(nh), 
-m_sub_pointcloud(m_nh.subscribe("/lidar_0/livox/lidar", 1, &Colorization::pointcloudCallback, this)), 
-m_sub_image(m_nh.subscribe("/cam_0/camera/color/image_raw", 1, &Colorization::imageCallback, this)), 
-m_pub_pointcloud(m_nh.advertise<sensor_msgs::PointCloud2>("/lidar_0/livox/colorized", 1))
+m_nh(nh)
 {
+    m_nh.getParam("/colorization/cam", m_cam_name);
+    m_nh.getParam("/colorization/lidar", m_lidar_name);
+    m_sub_pointcloud = m_nh.subscribe("/" + m_lidar_name + "/livox/lidar", 1, &Colorization::pointcloudCallback, this);
+    m_sub_image = m_nh.subscribe("/" + m_cam_name + "/camera/color/image_raw", 1, &Colorization::imageCallback, this);
+    m_pub_pointcloud = m_nh.advertise<sensor_msgs::PointCloud2>("/" + m_lidar_name + "/livox/colorized", 1);
     m_intrinsic = cv::Mat::zeros(3, 3, CV_64F);
     m_extrinsic = cv::Mat::zeros(4, 4, CV_64F);
     // get extrinsic from parameter server
     std::vector<double> extrinsic;
-    m_nh.getParam("/cam_0/extrinsic", extrinsic);
+    m_nh.getParam("/" + m_cam_name + "/extrinsic", extrinsic);
     for (int i = 0; i < 4; i++)
     {
         for (int j = 0; j < 4; j++)
@@ -26,7 +28,7 @@ m_pub_pointcloud(m_nh.advertise<sensor_msgs::PointCloud2>("/lidar_0/livox/colori
     }
     // get intrinsic from parameter server
     std::vector<double> intrinsic;
-    m_nh.getParam("/cam_0/intrinsic", intrinsic);
+    m_nh.getParam("/" + m_cam_name + "/intrinsic", intrinsic);
     for (int i = 0; i < 3; i++)
     {
         for (int j = 0; j < 3; j++)
@@ -34,12 +36,6 @@ m_pub_pointcloud(m_nh.advertise<sensor_msgs::PointCloud2>("/lidar_0/livox/colori
             m_intrinsic.at<double>(i, j) = intrinsic[i * 3 + j];
         }
     }
-
-    // parseMatrix(intrinsic_path, m_intrinsic);
-    // parseMatrix(extrinsic_path, m_extrinsic);
-    // // log the matrix
-    // ROS_WARN_STREAM("intrinsic matrix: " << m_intrinsic);
-    // ROS_WARN_STREAM("extrinsic matrix: " << m_extrinsic);
 }
 
 void Colorization::run()

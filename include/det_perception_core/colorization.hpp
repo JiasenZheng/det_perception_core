@@ -30,6 +30,8 @@ public:
 
 private:
     ros::NodeHandle m_nh;
+    std::string m_cam_name;
+    std::string m_lidar_name;
     ros::Subscriber m_sub_pointcloud;
     ros::Subscriber m_sub_image;
     ros::Publisher m_pub_pointcloud;

@@ -1,10 +1,12 @@
 <launch>
+    <arg name="cam" default="cam_0" />
+    <arg name="lidar" default="lidar_0" />
 
     <rosparam command="load" file="$(find det_perception_core)/config/calib/sensor_config.yaml"/>
 
-    <group ns="cam_0">
+    <group ns="$(arg cam)">
         <include file="$(find realsense2_camera)/launch/rs_camera.launch">
-            <arg name="tf_prefix"             value="cam_0"/>
+            <arg name="tf_prefix"             value="$(arg cam)"/>
             <arg name="initial_reset"         value="false"/>
             <arg name="reconnect_timeout"     value="6.0"/>
             <arg name="enable_pointcloud"     value="false" />
@@ -17,13 +19,16 @@
         </include>
     </group>
 
-    <group ns="lidar_0">
+    <group ns="$(arg lidar)">
         <include file="$(find livox_ros_driver)/launch/livox_lidar_rviz.launch">
             <arg name="rviz_enable"           value="false"/>
         </include>
     </group>
 
-    <node name="colorization" pkg="det_perception_core" type="colorization" output="screen"/>
+    <node name="colorization" pkg="det_perception_core" type="colorization" output="screen">
+        <param name="cam" value="$(arg cam)" />
+        <param name="lidar" value="$(arg lidar)" />
+    </node>
 
     <node name="rviz" pkg="rviz" type="rviz" args=
     "-d $(find det_perception_core)/config/rviz/colorization.rviz"/>
