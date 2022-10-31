@@ -1,11 +1,10 @@
 <launch>
-    <arg name="cam" default="cam_0" />
-    <arg name="lidar" default="lidar_0" />
 
     <rosparam command="load" file="$(find det_perception_core)/config/calib/sensor_config.yaml"/>
 
-    <group ns="$(arg cam)">
+    <group ns="cam_1">
         <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+            <arg name="serial_no"             value="937622070073"/>
             <arg name="tf_prefix"             value="$(arg cam)"/>
             <arg name="initial_reset"         value="false"/>
             <arg name="reconnect_timeout"     value="6.0"/>
@@ -19,8 +18,9 @@
         </include>
     </group>
 
-    <group ns="$(arg lidar)">
+    <group ns="lidar_1">
         <include file="$(find livox_ros_driver)/launch/livox_lidar_rviz.launch">
+            <arg name="bd_list" default="0TFDJBC001Q2431"/>
             <arg name="rviz_enable"           value="false"/>
         </include>
     </group>
