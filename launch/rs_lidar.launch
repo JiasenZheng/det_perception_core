@@ -1,0 +1,16 @@
+<launch>
+    <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+        <arg name="camera" value="l515" />
+        <arg name="enable_confidence" value="false" />
+        <arg name="enable_pointcloud" value="true" />
+        <arg name="depth_width" value="1024" />
+        <arg name="depth_height" value="768" />
+        <arg name="depth_fps" value="30" />
+        <arg name="enable_depth" value="true" />
+        <arg name="color_width" value="1920" />
+        <arg name="color_height" value="1080" />
+        <arg name="color_fps" value="30" />
+        <arg name="enable_color" value="true" />
+    </include>
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find det_perception_core)/config/rviz/rs_lidar.rviz"/>
+</launch>

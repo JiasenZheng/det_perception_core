@@ -1,5 +1,4 @@
 <launch>
-
     <rosparam command="load" file="$(find det_perception_core)/config/calib/sensor_config.yaml"/>
 
     <group ns="cam_1">
