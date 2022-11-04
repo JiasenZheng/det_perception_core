@@ -158,6 +158,7 @@ include_directories(
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 add_executable(colorization src/colorization.cpp)
+add_executable(perception_core src/perception_core.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -176,6 +177,14 @@ target_link_libraries(colorization
   ${OpenCV_LIBRARIES}
   ${EIGEN_LIBRARIES}
 )
+
+target_link_libraries(perception_core
+  ${catkin_LIBRARIES}
+  ${PCL_LIBRARIES}
+  ${OpenCV_LIBRARIES}
+  ${EIGEN_LIBRARIES}
+)
+
 
 
 #############
