@@ -1,0 +1,14 @@
+<launch>
+
+    <!-- bringup l515 -->
+    <include file="$(find det_perception_core)/launch/rs_lidar.launch">
+        <arg name="use_rviz" value="false"/>
+    </include>
+
+    <!-- perception node -->
+    <node name="perception_core" pkg="det_perception_core" type="perception_core" output="screen"/>
+
+    <!-- rviz -->
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find det_perception_core)/config/rviz/perception_core.rviz"/>
+
+</launch>

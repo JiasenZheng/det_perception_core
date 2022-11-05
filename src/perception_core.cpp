@@ -35,5 +35,6 @@ int main(int argc, char** argv)
     ros::NodeHandle nh;
     PerceptionCore perception_core(nh);
     perception_core.run();
+    ros::spin();
     return 0;
 }
