@@ -17,6 +17,7 @@
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/filters/project_inliers.h>
 #include <pcl/filters/passthrough.h>
+#include <pcl/filters/extract_indices.h>
 #include <opencv2/opencv.hpp>
 #include <opencv2/calib3d.hpp>
 #include <sensor_msgs/PointCloud2.h>
@@ -36,9 +37,12 @@ public:
     template <typename T>
     pcl::PointCloud<pcl::PointXYZRGB> colorizeSegmentation(const typename pcl::PointCloud<T>::Ptr cloud, 
     const pcl::PointIndices::Ptr inliers);
+    // template <typename T>
+    // void removePlane(typename pcl::PointCloud<T>::Ptr cloud, const pcl::ModelCoefficients::Ptr coefficients, 
+    // const double& distance_threshold);
     template <typename T>
-    void removePlane(typename pcl::PointCloud<T>::Ptr cloud, const pcl::ModelCoefficients::Ptr coefficients, 
-    const double& distance_threshold);
+    typename pcl::PointCloud<T>::Ptr removePlane(const typename pcl::PointCloud<T>::Ptr cloud, 
+    const pcl::ModelCoefficients::Ptr coefficients, const double& distance_threshold);
 
 private:
     ros::NodeHandle m_nh;
