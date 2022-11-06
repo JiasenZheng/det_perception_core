@@ -84,29 +84,6 @@ const pcl::PointIndices::Ptr inliers) {
     return colored_cloud;
 }
 
-// template <typename T>
-// void PerceptionCore::removePlane(typename pcl::PointCloud<T>::Ptr cloud, const pcl::ModelCoefficients::Ptr coefficients,
-// const double& distance_threshold) {
-//     // compute the distance from each point to the plane
-//     for (size_t i = 0; i < cloud->points.size(); i++) {
-//         double distance = std::abs(coefficients->values[0] * cloud->points[i].x + coefficients->values[1] * 
-//         cloud->points[i].y + coefficients->values[2] * cloud->points[i].z + coefficients->values[3]) / 
-//         std::sqrt(coefficients->values[0] * coefficients->values[0] + coefficients->values[1] * 
-//         coefficients->values[1] + coefficients->values[2] * coefficients->values[2]);
-//         // remove the point if it is too close to the plane
-//         if (distance < distance_threshold) {
-//             cloud->points[i].x = std::numeric_limits<float>::quiet_NaN();
-//             cloud->points[i].y = std::numeric_limits<float>::quiet_NaN();
-//             cloud->points[i].z = std::numeric_limits<float>::quiet_NaN();
-//         }
-//         // // remove the point if it is below the plane
-//         if (cloud->points[i].z > std::abs(coefficients->values[3])) {
-//             cloud->points[i].x = std::numeric_limits<float>::quiet_NaN();
-//             cloud->points[i].y = std::numeric_limits<float>::quiet_NaN();
-//             cloud->points[i].z = std::numeric_limits<float>::quiet_NaN();
-//         }
-//     }
-// }
 
 template <typename T>
 typename pcl::PointCloud<T>::Ptr PerceptionCore::removePlane(const typename pcl::PointCloud<T>::Ptr cloud, 
