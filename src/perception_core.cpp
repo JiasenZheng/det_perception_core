@@ -16,22 +16,43 @@ PerceptionCore::PerceptionCore(ros::NodeHandle nh): m_nh(nh)
 
 void PerceptionCore::run()
 {
-    
+    ROS_INFO_STREAM("Initializing perception core ...");
+    ROS_INFO_STREAM("Detecting table ...");
+    // wait for the first pointcloud message
+    auto first_point_cloud_msg = ros::topic::waitForMessage<sensor_msgs::PointCloud2>(m_lidar_topic, m_nh, 
+    ros::Duration(30.0));
+    if (first_point_cloud_msg == nullptr)
+    {
+        ROS_ERROR_STREAM("No pointcloud message received!");
+        return;
+    }
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::fromROSMsg(*first_point_cloud_msg, *cloud);
+    pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
+    pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
+    planeSegmentation<pcl::PointXYZ>(cloud, 100, 0.1, inliers, coefficients);
+    ROS_INFO_STREAM("Table detected!");
+    // log inliers and coefficients
+    ROS_INFO_STREAM("Inliers: " << inliers->indices.size());
+    ROS_INFO_STREAM("Coefficients: " << coefficients->values[0] << " " << coefficients->values[1] << " " <<
+    coefficients->values[2] << " " << coefficients->values[3]);
+    m_plane_coefficients = coefficients;
 }
 
 void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg)
-{
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+{   
+    if (m_plane_coefficients == nullptr)
+    {
+        return;
+    }
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
     pcl::fromROSMsg(*msg, *cloud);
-    pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
-    pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
-    planeSegmentation<pcl::PointXYZ>(cloud, 100, 0.01, inliers, coefficients);
-    pcl::PointCloud<pcl::PointXYZRGB> cloud_colored = colorizeSegmentation<pcl::PointXYZ>(cloud, inliers);
-    sensor_msgs::PointCloud2 processed_msg;
-    pcl::toROSMsg(cloud_colored, processed_msg);
-    processed_msg.header.frame_id = msg->header.frame_id;
-    processed_msg.header.stamp = msg->header.stamp;
-    m_pointcloud_pub.publish(processed_msg);
+    removePlane<pcl::PointXYZRGB>(cloud, m_plane_coefficients, 0.01);
+    sensor_msgs::PointCloud2 processed_cloud_msg;
+    pcl::toROSMsg(*cloud, processed_cloud_msg);
+    processed_cloud_msg.header.frame_id = msg->header.frame_id;
+    processed_cloud_msg.header.stamp = msg->header.stamp;
+    m_pointcloud_pub.publish(processed_cloud_msg);
 }
 
 template <typename T>
@@ -70,6 +91,30 @@ const pcl::PointIndices::Ptr inliers) {
         }
     }
     return colored_cloud;
+}
+
+template <typename T>
+void PerceptionCore::removePlane(typename pcl::PointCloud<T>::Ptr cloud, const pcl::ModelCoefficients::Ptr coefficients,
+const double& distance_threshold) {
+    // compute the distance from each point to the plane
+    for (size_t i = 0; i < cloud->points.size(); i++) {
+        double distance = std::abs(coefficients->values[0] * cloud->points[i].x + coefficients->values[1] * 
+        cloud->points[i].y + coefficients->values[2] * cloud->points[i].z + coefficients->values[3]) / 
+        std::sqrt(coefficients->values[0] * coefficients->values[0] + coefficients->values[1] * 
+        coefficients->values[1] + coefficients->values[2] * coefficients->values[2]);
+        // remove the point if it is too close to the plane
+        if (distance < distance_threshold) {
+            cloud->points[i].x = std::numeric_limits<float>::quiet_NaN();
+            cloud->points[i].y = std::numeric_limits<float>::quiet_NaN();
+            cloud->points[i].z = std::numeric_limits<float>::quiet_NaN();
+        }
+        // // remove the point if it is below the plane
+        if (cloud->points[i].z > std::abs(coefficients->values[3])) {
+            cloud->points[i].x = std::numeric_limits<float>::quiet_NaN();
+            cloud->points[i].y = std::numeric_limits<float>::quiet_NaN();
+            cloud->points[i].z = std::numeric_limits<float>::quiet_NaN();
+        }
+    }
 }
 
 int main(int argc, char** argv)
