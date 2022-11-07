@@ -24,6 +24,20 @@
 #include <sensor_msgs/Image.h>
 #include <cv_bridge/cv_bridge.h>
 
+// data structure to store ordered point cloud and its start pixel coordinate
+template <typename T>
+struct OrderedCloud {
+    // constructor
+    OrderedCloud() : start_x(0), start_y(0) {};
+    OrderedCloud(typename pcl::PointCloud<T>::Ptr cloud, int x, int y) : cloud(cloud), start_x(x), start_y(y) {};
+    // data
+    typename pcl::PointCloud<T>::Ptr cloud;
+    int start_x;
+    int start_y;
+};
+
+
+
 class PerceptionCore
 {
 public:
@@ -47,10 +61,13 @@ public:
     template <typename T>
     typename pcl::PointCloud<T>::Ptr removePlane(const typename pcl::PointCloud<T>::Ptr cloud, 
     const cv::Mat& foreground_mask, const pcl::ModelCoefficients::Ptr coefficients, const double& distance_threshold);
+    template <typename T>
+    typename OrderedCloud<T>::Ptr shrinkOrderedCloud(const typename OrderedCloud<T>::Ptr ordered_cloud);
 
 private:
     int m_image_count;
     int m_margin_pixels;
+    // OrderedCloud<pcl::PointXYZRGB> m_ordered_cloud;
     cv::Mat m_background_image;
     cv::Mat m_foreground_mask;
     std::string m_background_image_path;

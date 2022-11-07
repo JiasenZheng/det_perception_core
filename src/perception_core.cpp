@@ -184,15 +184,6 @@ const int& threshold) {
     cv::cvtColor(foreground_mask, foreground_mask, cv::COLOR_BGR2GRAY);
     cv::threshold(foreground_mask, foreground_mask, threshold, 255, cv::THRESH_BINARY);
 
-    // // get countours that around the foreground
-    // std::vector<std::vector<cv::Point>> contours;
-    // std::vector<cv::Vec4i> hierarchy;
-    // cv::findContours(foreground_mask, contours, hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
-    // cv::Mat foreground_mask_contours = cv::Mat::zeros(foreground_mask.size(), CV_8UC1);
-    // for (size_t i = 0; i < contours.size(); i++) {
-    //     cv::drawContours(foreground_mask_contours, contours, i, cv::Scalar(255), cv::FILLED);
-    // }
-
     return foreground_mask;
 }
 
@@ -228,6 +219,92 @@ const cv::Mat& foreground_mask, const pcl::ModelCoefficients::Ptr coefficients, 
                 continue;
             }
             cloud_filtered->points[idx] = cloud->points[idx];
+        }
+    }
+    return cloud_filtered;
+}
+
+template <typename T>
+typename OrderedCloud<T>::Ptr shrinkOrderedCloud(const typename OrderedCloud<T>::Ptr ordered_cloud) {
+    // shrink the ordered point cloud by removing the invalid points
+    typename OrderedCloud<T>::Ptr cloud_filtered(new OrderedCloud<T>);
+    int start_x = ordered_cloud->start_x;
+    int start_y = ordered_cloud->start_y;
+    int width = ordered_cloud->cloud->width;
+    int height = ordered_cloud->cloud->height;
+    int pointer_u = 0;
+    int pointer_d = height - 1;
+    int pointer_l = 0;
+    int pointer_r = width - 1;
+    // shrink the point cloud from the top and bottom using two pointers
+    while (pointer_u < pointer_d) {
+        bool flag_u = false;
+        bool flag_d = false;
+        for (int i = 0; i < width; i++) {
+            if (!std::isnan(ordered_cloud->cloud->points[pointer_u * width + i].x)) {
+                flag_u = true;
+                break;
+            }
+        }
+        for (int i = 0; i < width; i++) {
+            if (!std::isnan(ordered_cloud->cloud->points[pointer_d * width + i].x)) {
+                flag_d = true;
+                break;
+            }
+        }
+        if (flag_u && flag_d) {
+            break;
+        }
+        if (!flag_u) {
+            pointer_u++;
+            start_y++;
+        }
+        if (!flag_d) {
+            pointer_d--;
+        }
+    }
+    // get the new height
+    int new_height = pointer_d - pointer_u + 1;
+    // shrink the point cloud from the left and right using two pointers
+    while (pointer_l < pointer_r) {
+        bool flag_l = false;
+        bool flag_r = false;
+        for (int i = 0; i < new_height; i++) {
+            if (!std::isnan(ordered_cloud->cloud->points[(i + pointer_u) * width + pointer_l].x)) {
+                flag_l = true;
+                break;
+            }
+        }
+        for (int i = 0; i < new_height; i++) {
+            if (!std::isnan(ordered_cloud->cloud->points[(i + pointer_u) * width + pointer_r].x)) {
+                flag_r = true;
+                break;
+            }
+        }
+        if (flag_l && flag_r) {
+            break;
+        }
+        if (!flag_l) {
+            pointer_l++;
+            start_x++;
+        }
+        if (!flag_r) {
+            pointer_r--;
+        }
+    }
+    // get the new width
+    int new_width = pointer_r - pointer_l + 1;
+    // set the new point cloud
+    cloud_filtered->cloud->width = new_width;
+    cloud_filtered->cloud->height = new_height;
+    cloud_filtered->cloud->is_dense = false;
+    cloud_filtered->cloud->points.resize(new_width * new_height);
+    cloud_filtered->start_x = start_x;
+    cloud_filtered->start_y = start_y;
+    for (int i = 0; i < new_height; i++) {
+        for (int j = 0; j < new_width; j++) {
+            cloud_filtered->cloud->points[i * new_width + j] = ordered_cloud->cloud->points[(i + pointer_u) * width +
+            j + pointer_l];
         }
     }
     return cloud_filtered;
