@@ -79,12 +79,12 @@ void PerceptionCore::imageCallback(const sensor_msgs::ImageConstPtr& msg)
     // get foreground mask
     m_foreground_mask = imageBackgroundSubtraction(image, m_background_image, 60);
 
-    // // publish the processed image
-    // cv_bridge::CvImage out_msg;
-    // out_msg.header = msg->header;
-    // out_msg.encoding = sensor_msgs::image_encodings::MONO8;
-    // out_msg.image = m_foreground_mask;
-    // m_processed_image_pub.publish(out_msg.toImageMsg());
+    // publish the processed image
+    cv_bridge::CvImage out_msg;
+    out_msg.header = msg->header;
+    out_msg.encoding = sensor_msgs::image_encodings::MONO8;
+    out_msg.image = m_foreground_mask;
+    m_processed_image_pub.publish(out_msg.toImageMsg());
 }
 
 template <typename T>
@@ -183,6 +183,16 @@ const int& threshold) {
     cv::absdiff(image, background_image, foreground_mask);
     cv::cvtColor(foreground_mask, foreground_mask, cv::COLOR_BGR2GRAY);
     cv::threshold(foreground_mask, foreground_mask, threshold, 255, cv::THRESH_BINARY);
+
+    // // get countours that around the foreground
+    // std::vector<std::vector<cv::Point>> contours;
+    // std::vector<cv::Vec4i> hierarchy;
+    // cv::findContours(foreground_mask, contours, hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+    // cv::Mat foreground_mask_contours = cv::Mat::zeros(foreground_mask.size(), CV_8UC1);
+    // for (size_t i = 0; i < contours.size(); i++) {
+    //     cv::drawContours(foreground_mask_contours, contours, i, cv::Scalar(255), cv::FILLED);
+    // }
+
     return foreground_mask;
 }
 
