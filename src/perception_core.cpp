@@ -8,10 +8,18 @@
 
 PerceptionCore::PerceptionCore(ros::NodeHandle nh): m_nh(nh)
 {
-    m_lidar_topic = "/l515/depth/color/points";
+    m_nh.param("margin_pixels", m_margin_pixels, 20);
+    m_image_count = 100;
+    m_background_image_path = "/home/jiasen/det_ws/src/det_perception_core/image/background.png";
+    m_foreground_mask = cv::Mat::zeros(720, 1280, CV_8UC1);
+    // read background image as bgr
+    m_background_image = cv::imread(m_background_image_path, cv::IMREAD_COLOR);
+    m_lidar_topic = "/l515/depth_registered/points";
     m_pointcloud_sub = m_nh.subscribe(m_lidar_topic, 1, &PerceptionCore::pointcloudCallback, this);
-    // m_image_sub = m_nh.subscribe("/l515/color/image_raw", 1, &PerceptionCore::imageCallback, this);
-    m_pointcloud_pub = m_nh.advertise<sensor_msgs::PointCloud2>("/l515/points/processed", 1);
+    m_image_sub = m_nh.subscribe("/l515/color/image_raw", 1, &PerceptionCore::imageCallback, this);
+    m_cropped_cloud_pub = m_nh.advertise<sensor_msgs::PointCloud2>("/l515/points/cropped", 1);
+    m_processed_cloud_pub = m_nh.advertise<sensor_msgs::PointCloud2>("/l515/points/processed", 1);
+    m_processed_image_pub = m_nh.advertise<sensor_msgs::Image>("/l515/image/processed", 1);
 }
 
 void PerceptionCore::run()
@@ -20,13 +28,21 @@ void PerceptionCore::run()
 
 void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg)
 {   
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+    pcl::fromROSMsg(*msg, *cloud);
+    // crop the point cloud
+    auto cropped_cloud = cropOrderedCloud<pcl::PointXYZRGB>(cloud, m_margin_pixels);
+    sensor_msgs::PointCloud2 cropped_msg;
+    pcl::toROSMsg(*cropped_cloud, cropped_msg);
+    cropped_msg.header.frame_id = msg->header.frame_id;
+    cropped_msg.header.stamp = msg->header.stamp;
+    m_cropped_cloud_pub.publish(cropped_msg);
+    // remove the table plane
     if (m_plane_coefficients == nullptr)
     {
-        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
-        pcl::fromROSMsg(*msg, *cloud);
         pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
         pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
-        planeSegmentation<pcl::PointXYZ>(cloud, 100, 0.1, inliers, coefficients);
+        planeSegmentation<pcl::PointXYZRGB>(cloud, 100, 0.1, inliers, coefficients);
         ROS_INFO_STREAM("Table detected!");
         m_plane_coefficients = coefficients;
         // log inliers and coefficients
@@ -36,14 +52,39 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
         m_plane_coefficients = coefficients;
         return;
     }
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-    pcl::fromROSMsg(*msg, *cloud);
-    auto cloud_filtered = removePlane<pcl::PointXYZRGB>(cloud, m_plane_coefficients, 0.01);
+    auto cloud_filtered = removePlane<pcl::PointXYZRGB>(cloud, m_foreground_mask, m_plane_coefficients, 0.01);
     sensor_msgs::PointCloud2 cloud_msg;
     pcl::toROSMsg(*cloud_filtered, cloud_msg);
     cloud_msg.header.frame_id = msg->header.frame_id;
     cloud_msg.header.stamp = msg->header.stamp;
-    m_pointcloud_pub.publish(cloud_msg);
+    m_processed_cloud_pub.publish(cloud_msg);
+}
+
+void PerceptionCore::imageCallback(const sensor_msgs::ImageConstPtr& msg)
+{
+    // convert to cv::Mat
+    cv_bridge::CvImagePtr cv_ptr;
+    try
+    {
+        cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
+    }
+    catch (cv_bridge::Exception& e)
+    {
+        ROS_ERROR("cv_bridge exception: %s", e.what());
+        return;
+    }
+    // get the image
+    cv::Mat image = cv_ptr->image;
+
+    // get foreground mask
+    m_foreground_mask = imageBackgroundSubtraction(image, m_background_image, 60);
+
+    // // publish the processed image
+    // cv_bridge::CvImage out_msg;
+    // out_msg.header = msg->header;
+    // out_msg.encoding = sensor_msgs::image_encodings::MONO8;
+    // out_msg.image = m_foreground_mask;
+    // m_processed_image_pub.publish(out_msg.toImageMsg());
 }
 
 template <typename T>
@@ -108,6 +149,77 @@ const pcl::ModelCoefficients::Ptr coefficients, const double& distance_threshold
     cloud_filtered->width = cloud_filtered->points.size();
     cloud_filtered->height = 1;
     cloud_filtered->is_dense = true;
+    return cloud_filtered;
+}
+
+template <typename T>
+typename pcl::PointCloud<T>::Ptr PerceptionCore::cropOrderedCloud(const typename pcl::PointCloud<T>::Ptr cloud, 
+const int& margin_pixels) {
+    // loop through the ordered point cloud and remove points that are too close to the edge of the image
+    typename pcl::PointCloud<T>::Ptr cloud_filtered(new pcl::PointCloud<T>);
+    int width = cloud->width;
+    int height = cloud->height;
+    int new_width = width - 2 * margin_pixels;
+    int new_height = height - 2 * margin_pixels;
+    cloud_filtered->width = new_width;
+    cloud_filtered->height = new_height;
+    cloud_filtered->is_dense = false;
+    cloud_filtered->points.resize(new_width * new_height);
+    for (int i = 0; i < new_height; i++) {
+        for (int j = 0; j < new_width; j++) {
+            cloud_filtered->points[i * new_width + j] = cloud->points[(i + margin_pixels) * width + j + 
+            margin_pixels];
+        }
+    }
+    return cloud_filtered;
+}
+
+cv::Mat PerceptionCore::imageBackgroundSubtraction(const cv::Mat& image, const cv::Mat& background, 
+const int& threshold) {
+    // background subtraction
+    cv::Mat foreground_mask;
+    cv::Mat background_image;
+    cv::resize(background, background_image, image.size());
+    cv::absdiff(image, background_image, foreground_mask);
+    cv::cvtColor(foreground_mask, foreground_mask, cv::COLOR_BGR2GRAY);
+    cv::threshold(foreground_mask, foreground_mask, threshold, 255, cv::THRESH_BINARY);
+    return foreground_mask;
+}
+
+template <typename T>
+typename pcl::PointCloud<T>::Ptr PerceptionCore::removePlane(const typename pcl::PointCloud<T>::Ptr cloud, 
+const cv::Mat& foreground_mask, const pcl::ModelCoefficients::Ptr coefficients, const double& distance_threshold) {
+    typename pcl::PointCloud<T>::Ptr cloud_filtered(new pcl::PointCloud<T>);
+    int width = cloud->width;
+    int height = cloud->height;
+    cloud_filtered->width = width;
+    cloud_filtered->height = height;
+    cloud_filtered->is_dense = false;
+    cloud_filtered->points.resize(cloud->points.size());
+    for (int i = 0; i < height; i++) {
+        for (int j = 0; j < width; j++) {
+            int idx = i * width + j;
+            double distance = std::abs(coefficients->values[0] * cloud->points[idx].x + coefficients->values[1] *
+            cloud->points[idx].y + coefficients->values[2] * cloud->points[idx].z + coefficients->values[3]) /
+            std::sqrt(coefficients->values[0] * coefficients->values[0] + coefficients->values[1] *
+            coefficients->values[1] + coefficients->values[2] * coefficients->values[2]);
+            // set the point to be invalid if it is below the plane
+            if (cloud->points[idx].z > std::abs(coefficients->values[3])) {
+                cloud_filtered->points[idx].x = std::numeric_limits<float>::quiet_NaN();
+                cloud_filtered->points[idx].y = std::numeric_limits<float>::quiet_NaN();
+                cloud_filtered->points[idx].z = std::numeric_limits<float>::quiet_NaN();
+                continue;
+            }
+            // set the point to be invalid if it is too close to the plane and the foreground mask is 0
+            if (distance < distance_threshold && foreground_mask.at<uchar>(i, j) == 0) {
+                cloud_filtered->points[idx].x = std::numeric_limits<float>::quiet_NaN();
+                cloud_filtered->points[idx].y = std::numeric_limits<float>::quiet_NaN();
+                cloud_filtered->points[idx].z = std::numeric_limits<float>::quiet_NaN();
+                continue;
+            }
+            cloud_filtered->points[idx] = cloud->points[idx];
+        }
+    }
     return cloud_filtered;
 }
 

@@ -1,7 +1,7 @@
 <launch>
 
     <!-- bringup l515 -->
-    <include file="$(find det_perception_core)/launch/rs_lidar.launch">
+    <include file="$(find det_perception_core)/launch/rs_lidar_ordered.launch">
         <arg name="use_rviz" value="false"/>
     </include>
 

@@ -37,18 +37,29 @@ public:
     template <typename T>
     pcl::PointCloud<pcl::PointXYZRGB> colorizeSegmentation(const typename pcl::PointCloud<T>::Ptr cloud, 
     const pcl::PointIndices::Ptr inliers);
-    // template <typename T>
-    // void removePlane(typename pcl::PointCloud<T>::Ptr cloud, const pcl::ModelCoefficients::Ptr coefficients, 
-    // const double& distance_threshold);
     template <typename T>
     typename pcl::PointCloud<T>::Ptr removePlane(const typename pcl::PointCloud<T>::Ptr cloud, 
     const pcl::ModelCoefficients::Ptr coefficients, const double& distance_threshold);
+    template <typename T>
+    typename pcl::PointCloud<T>::Ptr cropOrderedCloud(const typename pcl::PointCloud<T>::Ptr cloud, 
+    const int& margin_pixels);
+    cv::Mat imageBackgroundSubtraction(const cv::Mat& image, const cv::Mat& background, const int& threshold);
+    template <typename T>
+    typename pcl::PointCloud<T>::Ptr removePlane(const typename pcl::PointCloud<T>::Ptr cloud, 
+    const cv::Mat& foreground_mask, const pcl::ModelCoefficients::Ptr coefficients, const double& distance_threshold);
 
 private:
+    int m_image_count;
+    int m_margin_pixels;
+    cv::Mat m_background_image;
+    cv::Mat m_foreground_mask;
+    std::string m_background_image_path;
     ros::NodeHandle m_nh;
     std::string m_lidar_topic;
     ros::Subscriber m_pointcloud_sub;
     ros::Subscriber m_image_sub;
-    ros::Publisher m_pointcloud_pub;
+    ros::Publisher m_cropped_cloud_pub;
+    ros::Publisher m_processed_cloud_pub;
+    ros::Publisher m_processed_image_pub;
     pcl::ModelCoefficients::Ptr m_plane_coefficients;
 };
