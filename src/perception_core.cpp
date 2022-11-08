@@ -224,6 +224,8 @@ const cv::Mat& foreground_mask, const pcl::ModelCoefficients::Ptr coefficients, 
     cloud_filtered->height = height;
     cloud_filtered->is_dense = false;
     cloud_filtered->points.resize(cloud->points.size());
+    double threshold_overhead = 0.02;
+    auto max_z = std::abs(coefficients->values[3]);
     for (int i = 0; i < height; i++) {
         for (int j = 0; j < width; j++) {
             int idx = i * width + j;
@@ -232,7 +234,7 @@ const cv::Mat& foreground_mask, const pcl::ModelCoefficients::Ptr coefficients, 
             std::sqrt(coefficients->values[0] * coefficients->values[0] + coefficients->values[1] *
             coefficients->values[1] + coefficients->values[2] * coefficients->values[2]);
             // set the point to be invalid if it is below the plane
-            if (cloud->points[idx].z > std::abs(coefficients->values[3])) {
+            if (cloud->points[idx].z > (max_z + threshold_overhead)) {
                 cloud_filtered->points[idx].x = std::numeric_limits<float>::quiet_NaN();
                 cloud_filtered->points[idx].y = std::numeric_limits<float>::quiet_NaN();
                 cloud_filtered->points[idx].z = std::numeric_limits<float>::quiet_NaN();
