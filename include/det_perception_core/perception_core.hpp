@@ -34,6 +34,8 @@ struct OrderedCloud {
     typename pcl::PointCloud<T>::Ptr cloud;
     int start_x;
     int start_y;
+    // create a pointer
+    typedef boost::shared_ptr<OrderedCloud<T>> Ptr;
 };
 
 
@@ -46,6 +48,8 @@ public:
     void pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg);
     void imageCallback(const sensor_msgs::ImageConstPtr& msg);
     template <typename T>
+    typename OrderedCloud<T>::Ptr shrinkOrderedCloud(const typename OrderedCloud<T>::Ptr ordered_cloud);
+    template <typename T>
     void planeSegmentation(const typename pcl::PointCloud<T>::Ptr cloud, int max_iterations, 
     double distance_threshold, pcl::PointIndices::Ptr inliers, pcl::ModelCoefficients::Ptr coefficients);
     template <typename T>
@@ -57,12 +61,17 @@ public:
     template <typename T>
     typename pcl::PointCloud<T>::Ptr cropOrderedCloud(const typename pcl::PointCloud<T>::Ptr cloud, 
     const int& margin_pixels);
+    template <typename T>
+    typename OrderedCloud<T>::Ptr cropOrderedCloud(const typename OrderedCloud<T>::Ptr ordered_cloud,
+    const int& margin_pixels);
     cv::Mat imageBackgroundSubtraction(const cv::Mat& image, const cv::Mat& background, const int& threshold);
     template <typename T>
     typename pcl::PointCloud<T>::Ptr removePlane(const typename pcl::PointCloud<T>::Ptr cloud, 
     const cv::Mat& foreground_mask, const pcl::ModelCoefficients::Ptr coefficients, const double& distance_threshold);
     template <typename T>
-    typename OrderedCloud<T>::Ptr shrinkOrderedCloud(const typename OrderedCloud<T>::Ptr ordered_cloud);
+    typename OrderedCloud<T>::Ptr removePlane(const typename OrderedCloud<T>::Ptr ordered_cloud,
+    const cv::Mat& foreground_mask, const pcl::ModelCoefficients::Ptr coefficients, const double& distance_threshold);
+
 
 private:
     int m_image_count;

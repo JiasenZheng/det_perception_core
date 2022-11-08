@@ -30,13 +30,25 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
 {   
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
     pcl::fromROSMsg(*msg, *cloud);
+    // convert the point cloud to ordered point cloud ptr
+    typename OrderedCloud<pcl::PointXYZRGB>::Ptr ordered_raw_cloud(new OrderedCloud<pcl::PointXYZRGB>(cloud, 0, 0));
+    // // crop the point cloud
+    // auto cropped_cloud = cropOrderedCloud<pcl::PointXYZRGB>(cloud, m_margin_pixels);
+    // sensor_msgs::PointCloud2 cropped_msg;
+    // pcl::toROSMsg(*cropped_cloud, cropped_msg);
+    // cropped_msg.header.frame_id = msg->header.frame_id;
+    // cropped_msg.header.stamp = msg->header.stamp;
+    // m_cropped_cloud_pub.publish(cropped_msg);
+
     // crop the point cloud
-    auto cropped_cloud = cropOrderedCloud<pcl::PointXYZRGB>(cloud, m_margin_pixels);
+    auto ordered_cropped_cloud = cropOrderedCloud<pcl::PointXYZRGB>(ordered_raw_cloud, m_margin_pixels);
     sensor_msgs::PointCloud2 cropped_msg;
+    auto cropped_cloud = ordered_cropped_cloud->cloud;
     pcl::toROSMsg(*cropped_cloud, cropped_msg);
     cropped_msg.header.frame_id = msg->header.frame_id;
     cropped_msg.header.stamp = msg->header.stamp;
     m_cropped_cloud_pub.publish(cropped_msg);
+
     // remove the table plane
     if (m_plane_coefficients == nullptr)
     {
@@ -52,9 +64,10 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
         m_plane_coefficients = coefficients;
         return;
     }
-    auto cloud_filtered = removePlane<pcl::PointXYZRGB>(cloud, m_foreground_mask, m_plane_coefficients, 0.01);
+    // auto cloud_filtered = removePlane<pcl::PointXYZRGB>(cloud, m_foreground_mask, m_plane_coefficients, 0.01);
+    auto ordered_filtered_cloud = removePlane<pcl::PointXYZRGB>(ordered_raw_cloud, m_foreground_mask, m_plane_coefficients, 0.01);
     sensor_msgs::PointCloud2 cloud_msg;
-    pcl::toROSMsg(*cloud_filtered, cloud_msg);
+    pcl::toROSMsg(*ordered_filtered_cloud->cloud, cloud_msg);
     cloud_msg.header.frame_id = msg->header.frame_id;
     cloud_msg.header.stamp = msg->header.stamp;
     m_processed_cloud_pub.publish(cloud_msg);
@@ -174,6 +187,20 @@ const int& margin_pixels) {
     return cloud_filtered;
 }
 
+template <typename T>
+typename OrderedCloud<T>::Ptr PerceptionCore::cropOrderedCloud(const typename OrderedCloud<T>::Ptr ordered_cloud,
+const int& margin_pixels) {
+    // get ordered_cloud information
+    int start_x = ordered_cloud->start_x + margin_pixels;
+    int start_y = ordered_cloud->start_y + margin_pixels;
+    // create a new ordered cloud
+    typename OrderedCloud<T>::Ptr ordered_cloud_filtered(new OrderedCloud<T>);
+    ordered_cloud_filtered->start_x = start_x;
+    ordered_cloud_filtered->start_y = start_y;
+    ordered_cloud_filtered->cloud = PerceptionCore::cropOrderedCloud<T>(ordered_cloud->cloud, margin_pixels);
+    return ordered_cloud_filtered;
+}
+
 cv::Mat PerceptionCore::imageBackgroundSubtraction(const cv::Mat& image, const cv::Mat& background, 
 const int& threshold) {
     // background subtraction
@@ -222,6 +249,23 @@ const cv::Mat& foreground_mask, const pcl::ModelCoefficients::Ptr coefficients, 
         }
     }
     return cloud_filtered;
+}
+
+template <typename T>
+typename OrderedCloud<T>::Ptr PerceptionCore::removePlane(const typename OrderedCloud<T>::Ptr ordered_cloud,
+const cv::Mat& foreground_mask, const pcl::ModelCoefficients::Ptr coefficients, const double& distance_threshold) {
+    // get ordered_cloud information
+    int start_x = ordered_cloud->start_x;
+    int start_y = ordered_cloud->start_y;
+    // create a new ordered cloud
+    typename OrderedCloud<T>::Ptr ordered_cloud_filtered(new OrderedCloud<T>);
+    ordered_cloud_filtered->start_x = start_x;
+    ordered_cloud_filtered->start_y = start_y;
+    ordered_cloud_filtered->cloud = PerceptionCore::removePlane<T>(ordered_cloud->cloud, foreground_mask, 
+    coefficients, distance_threshold);
+    // // shrink the ordered cloud
+    // ordered_cloud_filtered = PerceptionCore::shrinkOrderedCloud<T>(ordered_cloud_filtered);
+    return ordered_cloud_filtered;
 }
 
 template <typename T>
