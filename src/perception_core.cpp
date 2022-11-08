@@ -32,6 +32,8 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
     pcl::fromROSMsg(*msg, *cloud);
     // convert the point cloud to ordered point cloud ptr
     typename OrderedCloud<pcl::PointXYZRGB>::Ptr ordered_raw_cloud(new OrderedCloud<pcl::PointXYZRGB>(cloud, 0, 0));
+    // shrink the point cloud
+    auto ordered_shrinked_cloud = PerceptionCore::shrinkOrderedCloud<pcl::PointXYZRGB>(ordered_raw_cloud);
     // // crop the point cloud
     // auto cropped_cloud = cropOrderedCloud<pcl::PointXYZRGB>(cloud, m_margin_pixels);
     // sensor_msgs::PointCloud2 cropped_msg;
@@ -263,13 +265,16 @@ const cv::Mat& foreground_mask, const pcl::ModelCoefficients::Ptr coefficients, 
     ordered_cloud_filtered->start_y = start_y;
     ordered_cloud_filtered->cloud = PerceptionCore::removePlane<T>(ordered_cloud->cloud, foreground_mask, 
     coefficients, distance_threshold);
-    // // shrink the ordered cloud
-    // ordered_cloud_filtered = PerceptionCore::shrinkOrderedCloud<T>(ordered_cloud_filtered);
+    // shrink the ordered cloud
+    ordered_cloud_filtered = PerceptionCore::shrinkOrderedCloud<T>(ordered_cloud_filtered);
+    // log cloud width and height
+    ROS_INFO("cloud width: %d, cloud height: %d", ordered_cloud_filtered->cloud->width,
+    ordered_cloud_filtered->cloud->height);
     return ordered_cloud_filtered;
 }
 
 template <typename T>
-typename OrderedCloud<T>::Ptr shrinkOrderedCloud(const typename OrderedCloud<T>::Ptr ordered_cloud) {
+typename OrderedCloud<T>::Ptr PerceptionCore::shrinkOrderedCloud(const typename OrderedCloud<T>::Ptr ordered_cloud) {
     // shrink the ordered point cloud by removing the invalid points
     typename OrderedCloud<T>::Ptr cloud_filtered(new OrderedCloud<T>);
     int start_x = ordered_cloud->start_x;
@@ -353,6 +358,35 @@ typename OrderedCloud<T>::Ptr shrinkOrderedCloud(const typename OrderedCloud<T>:
     }
     return cloud_filtered;
 }
+
+// template <typename T>
+// typename OrderedCloud<T>::Ptr PerceptionCore::shrinkOrderedCloud(const typename OrderedCloud<T>::Ptr ordered_cloud) {
+//     // create a new ordered cloud
+//     typename OrderedCloud<T>::Ptr cloud_filtered(new OrderedCloud<T>);
+//     // setup some fake values
+//     int start_x = ordered_cloud->start_x + 50;
+//     int start_y = ordered_cloud->start_y + 50;
+//     int new_width = ordered_cloud->cloud->width - 100;
+//     int new_height = ordered_cloud->cloud->height - 100;
+//     int width = ordered_cloud->cloud->width;
+//     int pointer_u = 50;
+//     int pointer_l = 50;
+//     // set the new point cloud
+//     cloud_filtered->cloud->width = new_width;
+//     cloud_filtered->cloud->height = new_height;
+//     cloud_filtered->cloud->is_dense = false;
+//     cloud_filtered->cloud->points.resize(new_width * new_height);
+//     cloud_filtered->start_x = start_x;
+//     cloud_filtered->start_y = start_y;
+//     for (int i = 0; i < new_height; i++) {
+//         for (int j = 0; j < new_width; j++) {
+//             cloud_filtered->cloud->points[i * new_width + j] = ordered_cloud->cloud->points[(i + pointer_u) * width +
+//             j + pointer_l];
+//         }
+//     }
+//     return cloud_filtered;
+// }
+
 
 int main(int argc, char** argv)
 {

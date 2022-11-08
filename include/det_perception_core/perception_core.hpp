@@ -28,7 +28,10 @@
 template <typename T>
 struct OrderedCloud {
     // constructor
-    OrderedCloud() : start_x(0), start_y(0) {};
+    OrderedCloud() : start_x(0), start_y(0) {
+        // initialize point cloud
+        cloud.reset(new pcl::PointCloud<T>);
+    };
     OrderedCloud(typename pcl::PointCloud<T>::Ptr cloud, int x, int y) : cloud(cloud), start_x(x), start_y(y) {};
     // data
     typename pcl::PointCloud<T>::Ptr cloud;
