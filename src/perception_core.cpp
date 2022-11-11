@@ -12,7 +12,6 @@ PerceptionCore::PerceptionCore(ros::NodeHandle nh): m_nh(nh)
     m_image_count = 100;
     m_background_image_path = "/home/jiasen/det_ws/src/det_perception_core/image/background.png";
     m_foreground_mask = cv::Mat::zeros(720, 1280, CV_8UC1);
-    // read background image as bgr
     m_background_image = cv::imread(m_background_image_path, cv::IMREAD_COLOR);
     m_lidar_topic = "/l515/depth_registered/points";
     m_pointcloud_sub = m_nh.subscribe(m_lidar_topic, 1, &PerceptionCore::pointcloudCallback, this);
@@ -32,16 +31,8 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
     pcl::fromROSMsg(*msg, *cloud);
     // convert the point cloud to ordered point cloud ptr
     typename OrderedCloud<pcl::PointXYZRGB>::Ptr ordered_raw_cloud(new OrderedCloud<pcl::PointXYZRGB>(cloud, 0, 0));
-    // // crop the point cloud
-    // auto cropped_cloud = cropOrderedCloud<pcl::PointXYZRGB>(cloud, m_margin_pixels);
-    // sensor_msgs::PointCloud2 cropped_msg;
-    // pcl::toROSMsg(*cropped_cloud, cropped_msg);
-    // cropped_msg.header.frame_id = msg->header.frame_id;
-    // cropped_msg.header.stamp = msg->header.stamp;
-    // m_cropped_cloud_pub.publish(cropped_msg);
-
     // crop the point cloud
-    auto ordered_cropped_cloud = cropOrderedCloud<pcl::PointXYZRGB>(ordered_raw_cloud, m_margin_pixels);
+    auto ordered_cropped_cloud = cropOrderedCloud<pcl::PointXYZRGB>(ordered_raw_cloud, 0, 20, 40, 40);
     sensor_msgs::PointCloud2 cropped_msg;
     auto cropped_cloud = ordered_cropped_cloud->cloud;
     pcl::toROSMsg(*cropped_cloud, cropped_msg);
@@ -54,7 +45,7 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
     {
         pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
         pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
-        planeSegmentation<pcl::PointXYZRGB>(cloud, 100, 0.1, inliers, coefficients);
+        planeSegmentation<pcl::PointXYZRGB>(cloud, 500, 0.01, inliers, coefficients);
         ROS_INFO_STREAM("Table detected!");
         m_plane_coefficients = coefficients;
         // log inliers and coefficients
@@ -65,7 +56,8 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
         return;
     }
     // auto cloud_filtered = removePlane<pcl::PointXYZRGB>(cloud, m_foreground_mask, m_plane_coefficients, 0.01);
-    auto ordered_filtered_cloud = removePlane<pcl::PointXYZRGB>(ordered_raw_cloud, m_foreground_mask, m_plane_coefficients, 0.01);
+    auto ordered_filtered_cloud = removePlane<pcl::PointXYZRGB>(ordered_raw_cloud, m_foreground_mask, 
+    m_plane_coefficients, 0.01);
     sensor_msgs::PointCloud2 cloud_msg;
     pcl::toROSMsg(*ordered_filtered_cloud->cloud, cloud_msg);
     cloud_msg.header.frame_id = msg->header.frame_id;
@@ -188,6 +180,27 @@ const int& margin_pixels) {
 }
 
 template <typename T>
+typename pcl::PointCloud<T>::Ptr PerceptionCore::cropOrderedCloud(const typename pcl::PointCloud<T>::Ptr cloud,
+const int& left_pixels, const int& right_pixels, const int& top_pixels, const int& bottom_pixels) {
+    // loop through the ordered point cloud and remove points that are too close to the edge of the image
+    typename pcl::PointCloud<T>::Ptr cloud_filtered(new pcl::PointCloud<T>);
+    int width = cloud->width;
+    int height = cloud->height;
+    int new_width = width - left_pixels - right_pixels;
+    int new_height = height - top_pixels - bottom_pixels;
+    cloud_filtered->width = new_width;
+    cloud_filtered->height = new_height;
+    cloud_filtered->is_dense = false;
+    cloud_filtered->points.resize(new_width * new_height);
+    for (int i = 0; i < new_height; i++) {
+        for (int j = 0; j < new_width; j++) {
+            cloud_filtered->points[i * new_width + j] = cloud->points[(i + top_pixels) * width + j + left_pixels];
+        }
+    }
+    return cloud_filtered;
+}
+
+template <typename T>
 typename OrderedCloud<T>::Ptr PerceptionCore::cropOrderedCloud(const typename OrderedCloud<T>::Ptr ordered_cloud,
 const int& margin_pixels) {
     // get ordered_cloud information
@@ -198,6 +211,21 @@ const int& margin_pixels) {
     ordered_cloud_filtered->start_x = start_x;
     ordered_cloud_filtered->start_y = start_y;
     ordered_cloud_filtered->cloud = PerceptionCore::cropOrderedCloud<T>(ordered_cloud->cloud, margin_pixels);
+    return ordered_cloud_filtered;
+}
+
+template <typename T>
+typename OrderedCloud<T>::Ptr PerceptionCore::cropOrderedCloud(const typename OrderedCloud<T>::Ptr ordered_cloud,
+const int& left_pixels, const int& right_pixels, const int& top_pixels, const int& bottom_pixels) {
+    // get ordered_cloud information
+    int start_x = ordered_cloud->start_x + left_pixels;
+    int start_y = ordered_cloud->start_y + top_pixels;
+    // create a new ordered cloud
+    typename OrderedCloud<T>::Ptr ordered_cloud_filtered(new OrderedCloud<T>);
+    ordered_cloud_filtered->start_x = start_x;
+    ordered_cloud_filtered->start_y = start_y;
+    ordered_cloud_filtered->cloud = PerceptionCore::cropOrderedCloud<T>(ordered_cloud->cloud, left_pixels, 
+    right_pixels, top_pixels, bottom_pixels);
     return ordered_cloud_filtered;
 }
 
@@ -357,6 +385,45 @@ typename OrderedCloud<T>::Ptr PerceptionCore::shrinkOrderedCloud(const typename 
         }
     }
     return cloud_filtered;
+}
+
+template <typename T>
+void PerceptionCore::getPlaneLimits(const typename pcl::PointCloud<T>::Ptr cloud, const pcl::PointIndices::Ptr inliers, 
+std::vector<double>& limits) {
+    // get the plane limits
+    double min_x = std::numeric_limits<double>::max();
+    double max_x = std::numeric_limits<double>::min();
+    double min_y = std::numeric_limits<double>::max();
+    double max_y = std::numeric_limits<double>::min();
+    double min_z = std::numeric_limits<double>::max();
+    double max_z = std::numeric_limits<double>::min();
+    for (int i = 0; i < inliers->indices.size(); i++) {
+        int idx = inliers->indices[i];
+        if (cloud->points[idx].x < min_x) {
+            min_x = cloud->points[idx].x;
+        }
+        if (cloud->points[idx].x > max_x) {
+            max_x = cloud->points[idx].x;
+        }
+        if (cloud->points[idx].y < min_y) {
+            min_y = cloud->points[idx].y;
+        }
+        if (cloud->points[idx].y > max_y) {
+            max_y = cloud->points[idx].y;
+        }
+        if (cloud->points[idx].z < min_z) {
+            min_z = cloud->points[idx].z;
+        }
+        if (cloud->points[idx].z > max_z) {
+            max_z = cloud->points[idx].z;
+        }
+    }
+    limits.push_back(min_x);
+    limits.push_back(max_x);
+    limits.push_back(min_y);
+    limits.push_back(max_y);
+    limits.push_back(min_z);
+    limits.push_back(max_z);
 }
 
 

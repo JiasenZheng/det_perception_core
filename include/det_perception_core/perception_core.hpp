@@ -67,6 +67,12 @@ public:
     template <typename T>
     typename OrderedCloud<T>::Ptr cropOrderedCloud(const typename OrderedCloud<T>::Ptr ordered_cloud,
     const int& margin_pixels);
+    template <typename T>
+    typename pcl::PointCloud<T>::Ptr cropOrderedCloud(const typename pcl::PointCloud<T>::Ptr cloud,
+    const int& left_pixels, const int& right_pixels, const int& top_pixels, const int& bottom_pixels);
+    template <typename T>
+    typename OrderedCloud<T>::Ptr cropOrderedCloud(const typename OrderedCloud<T>::Ptr ordered_cloud,
+    const int& left_pixels, const int& right_pixels, const int& top_pixels, const int& bottom_pixels);
     cv::Mat imageBackgroundSubtraction(const cv::Mat& image, const cv::Mat& background, const int& threshold);
     template <typename T>
     typename pcl::PointCloud<T>::Ptr removePlane(const typename pcl::PointCloud<T>::Ptr cloud, 
@@ -74,12 +80,14 @@ public:
     template <typename T>
     typename OrderedCloud<T>::Ptr removePlane(const typename OrderedCloud<T>::Ptr ordered_cloud,
     const cv::Mat& foreground_mask, const pcl::ModelCoefficients::Ptr coefficients, const double& distance_threshold);
-
+    template <typename T>
+    void getPlaneLimits(const typename pcl::PointCloud<T>::Ptr cloud, const pcl::PointIndices::Ptr inliers, 
+    std::vector<double>& limits);
 
 private:
     int m_image_count;
     int m_margin_pixels;
-    // OrderedCloud<pcl::PointXYZRGB> m_ordered_cloud;
+    std::vector<double> m_plane_limits;
     cv::Mat m_background_image;
     cv::Mat m_foreground_mask;
     std::string m_background_image_path;
