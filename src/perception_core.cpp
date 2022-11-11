@@ -45,7 +45,7 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
     {
         pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
         pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
-        planeSegmentation<pcl::PointXYZRGB>(cloud, 500, 0.01, inliers, coefficients);
+        planeSegmentation<pcl::PointXYZRGB>(ordered_cropped_cloud->cloud, 500, 0.01, inliers, coefficients);
         ROS_INFO_STREAM("Table detected!");
         m_plane_coefficients = coefficients;
         // log inliers and coefficients
@@ -55,8 +55,7 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
         m_plane_coefficients = coefficients;
         return;
     }
-    // auto cloud_filtered = removePlane<pcl::PointXYZRGB>(cloud, m_foreground_mask, m_plane_coefficients, 0.01);
-    auto ordered_filtered_cloud = removePlane<pcl::PointXYZRGB>(ordered_raw_cloud, m_foreground_mask, 
+    auto ordered_filtered_cloud = removePlane<pcl::PointXYZRGB>(ordered_cropped_cloud, m_foreground_mask, 
     m_plane_coefficients, 0.01);
     sensor_msgs::PointCloud2 cloud_msg;
     pcl::toROSMsg(*ordered_filtered_cloud->cloud, cloud_msg);
@@ -130,32 +129,6 @@ const pcl::PointIndices::Ptr inliers) {
     return colored_cloud;
 }
 
-
-template <typename T>
-typename pcl::PointCloud<T>::Ptr PerceptionCore::removePlane(const typename pcl::PointCloud<T>::Ptr cloud, 
-const pcl::ModelCoefficients::Ptr coefficients, const double& distance_threshold) {
-    typename pcl::PointCloud<T>::Ptr cloud_filtered(new pcl::PointCloud<T>);
-    //compute the distance from each point to the plane
-    for (size_t i = 0; i < cloud->points.size(); i++) {
-        double distance = std::abs(coefficients->values[0] * cloud->points[i].x + coefficients->values[1] * 
-        cloud->points[i].y + coefficients->values[2] * cloud->points[i].z + coefficients->values[3]) / 
-        std::sqrt(coefficients->values[0] * coefficients->values[0] + coefficients->values[1] * 
-        coefficients->values[1] + coefficients->values[2] * coefficients->values[2]);
-        //remove the point if it is too close to the plane
-        if (distance < distance_threshold) {
-            continue;
-        }
-        // remove the point if it is below the plane
-        if (cloud->points[i].z > std::abs(coefficients->values[3])) {
-            continue;
-        }
-        cloud_filtered->points.push_back(cloud->points[i]);
-    }
-    cloud_filtered->width = cloud_filtered->points.size();
-    cloud_filtered->height = 1;
-    cloud_filtered->is_dense = true;
-    return cloud_filtered;
-}
 
 template <typename T>
 typename pcl::PointCloud<T>::Ptr PerceptionCore::cropOrderedCloud(const typename pcl::PointCloud<T>::Ptr cloud, 
@@ -243,8 +216,16 @@ const int& threshold) {
 }
 
 template <typename T>
-typename pcl::PointCloud<T>::Ptr PerceptionCore::removePlane(const typename pcl::PointCloud<T>::Ptr cloud, 
+typename OrderedCloud<T>::Ptr PerceptionCore::removePlane(const typename OrderedCloud<T>::Ptr ordered_cloud,
 const cv::Mat& foreground_mask, const pcl::ModelCoefficients::Ptr coefficients, const double& distance_threshold) {
+    // get ordered_cloud information
+    int start_x = ordered_cloud->start_x;
+    int start_y = ordered_cloud->start_y;
+    auto cloud = ordered_cloud->cloud;
+    // create a new ordered cloud
+    typename OrderedCloud<T>::Ptr ordered_cloud_filtered(new OrderedCloud<T>);
+    ordered_cloud_filtered->start_x = start_x;
+    ordered_cloud_filtered->start_y = start_y;
     typename pcl::PointCloud<T>::Ptr cloud_filtered(new pcl::PointCloud<T>);
     int width = cloud->width;
     int height = cloud->height;
@@ -269,7 +250,7 @@ const cv::Mat& foreground_mask, const pcl::ModelCoefficients::Ptr coefficients, 
                 continue;
             }
             // set the point to be invalid if it is too close to the plane and the foreground mask is 0
-            if (distance < distance_threshold && foreground_mask.at<uchar>(i, j) == 0) {
+            if (distance < distance_threshold && foreground_mask.at<uchar>(i + start_y, j + start_x) == 0) {
                 cloud_filtered->points[idx].x = std::numeric_limits<float>::quiet_NaN();
                 cloud_filtered->points[idx].y = std::numeric_limits<float>::quiet_NaN();
                 cloud_filtered->points[idx].z = std::numeric_limits<float>::quiet_NaN();
@@ -278,26 +259,12 @@ const cv::Mat& foreground_mask, const pcl::ModelCoefficients::Ptr coefficients, 
             cloud_filtered->points[idx] = cloud->points[idx];
         }
     }
-    return cloud_filtered;
-}
-
-template <typename T>
-typename OrderedCloud<T>::Ptr PerceptionCore::removePlane(const typename OrderedCloud<T>::Ptr ordered_cloud,
-const cv::Mat& foreground_mask, const pcl::ModelCoefficients::Ptr coefficients, const double& distance_threshold) {
-    // get ordered_cloud information
-    int start_x = ordered_cloud->start_x;
-    int start_y = ordered_cloud->start_y;
-    // create a new ordered cloud
-    typename OrderedCloud<T>::Ptr ordered_cloud_filtered(new OrderedCloud<T>);
-    ordered_cloud_filtered->start_x = start_x;
-    ordered_cloud_filtered->start_y = start_y;
-    ordered_cloud_filtered->cloud = PerceptionCore::removePlane<T>(ordered_cloud->cloud, foreground_mask, 
-    coefficients, distance_threshold);
+    ordered_cloud_filtered->cloud = cloud_filtered;
     // shrink the ordered cloud
     ordered_cloud_filtered = PerceptionCore::shrinkOrderedCloud<T>(ordered_cloud_filtered);
     // log cloud width and height
-    ROS_INFO("cloud width: %d, cloud height: %d", ordered_cloud_filtered->cloud->width,
-    ordered_cloud_filtered->cloud->height);
+    // ROS_INFO("cloud width: %d, cloud height: %d", ordered_cloud_filtered->cloud->width,
+    // ordered_cloud_filtered->cloud->height);
     return ordered_cloud_filtered;
 }
 

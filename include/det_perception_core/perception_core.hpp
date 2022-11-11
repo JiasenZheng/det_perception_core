@@ -59,9 +59,6 @@ public:
     pcl::PointCloud<pcl::PointXYZRGB> colorizeSegmentation(const typename pcl::PointCloud<T>::Ptr cloud, 
     const pcl::PointIndices::Ptr inliers);
     template <typename T>
-    typename pcl::PointCloud<T>::Ptr removePlane(const typename pcl::PointCloud<T>::Ptr cloud, 
-    const pcl::ModelCoefficients::Ptr coefficients, const double& distance_threshold);
-    template <typename T>
     typename pcl::PointCloud<T>::Ptr cropOrderedCloud(const typename pcl::PointCloud<T>::Ptr cloud, 
     const int& margin_pixels);
     template <typename T>
@@ -74,9 +71,6 @@ public:
     typename OrderedCloud<T>::Ptr cropOrderedCloud(const typename OrderedCloud<T>::Ptr ordered_cloud,
     const int& left_pixels, const int& right_pixels, const int& top_pixels, const int& bottom_pixels);
     cv::Mat imageBackgroundSubtraction(const cv::Mat& image, const cv::Mat& background, const int& threshold);
-    template <typename T>
-    typename pcl::PointCloud<T>::Ptr removePlane(const typename pcl::PointCloud<T>::Ptr cloud, 
-    const cv::Mat& foreground_mask, const pcl::ModelCoefficients::Ptr coefficients, const double& distance_threshold);
     template <typename T>
     typename OrderedCloud<T>::Ptr removePlane(const typename OrderedCloud<T>::Ptr ordered_cloud,
     const cv::Mat& foreground_mask, const pcl::ModelCoefficients::Ptr coefficients, const double& distance_threshold);
