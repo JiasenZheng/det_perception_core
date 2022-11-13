@@ -77,13 +77,17 @@ public:
     template <typename T>
     void getPlaneLimits(const typename pcl::PointCloud<T>::Ptr cloud, const pcl::PointIndices::Ptr inliers, 
     std::vector<double>& limits);
-
+    template <typename T>
+    cv::Mat orderedCloudToImage(const typename OrderedCloud<T>::Ptr ordered_cloud, const int& width, const int& height);
+    template <typename T>
+    cv::Mat orderedCloudToMask(const typename OrderedCloud<T>::Ptr ordered_cloud, const int& width, const int& height);
+    void imageCluster(const cv::Mat& mask, cv::Mat& labels, int& num_labels, const int& pixel_threshold);
 private:
     int m_image_count;
     int m_margin_pixels;
     std::vector<double> m_plane_limits;
     cv::Mat m_background_image;
-    cv::Mat m_foreground_mask;
+    cv::Mat m_foreground_image_mask;
     std::string m_background_image_path;
     ros::NodeHandle m_nh;
     std::string m_lidar_topic;
@@ -92,5 +96,6 @@ private:
     ros::Publisher m_cropped_cloud_pub;
     ros::Publisher m_processed_cloud_pub;
     ros::Publisher m_processed_image_pub;
+    ros::Publisher m_foreground_image_pub;
     pcl::ModelCoefficients::Ptr m_plane_coefficients;
 };
