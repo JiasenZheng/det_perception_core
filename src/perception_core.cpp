@@ -10,6 +10,13 @@ PerceptionCore::PerceptionCore(ros::NodeHandle nh): m_nh(nh)
 {
     m_nh.param("margin_pixels", m_margin_pixels, 20);
     m_image_count = 100;
+    // init list of colors
+    m_colors.push_back(cv::Vec3b(255, 0, 0));
+    m_colors.push_back(cv::Vec3b(0, 255, 0));
+    m_colors.push_back(cv::Vec3b(0, 0, 255));
+    m_colors.push_back(cv::Vec3b(255, 255, 0));
+    m_colors.push_back(cv::Vec3b(255, 0, 255));
+    m_colors.push_back(cv::Vec3b(0, 255, 255));
     m_background_image_path = "/home/jiasen/det_ws/src/det_perception_core/image/background.png";
     m_foreground_image_mask = cv::Mat::zeros(720, 1280, CV_8UC1);
     m_foreground_cloud_mask = cv::Mat::zeros(720, 1280, CV_8UC1);
@@ -17,10 +24,11 @@ PerceptionCore::PerceptionCore(ros::NodeHandle nh): m_nh(nh)
     m_lidar_topic = "/l515/depth_registered/points";
     m_pointcloud_sub = m_nh.subscribe(m_lidar_topic, 1, &PerceptionCore::pointcloudCallback, this);
     m_rgb_image_sub = m_nh.subscribe("/l515/color/image_raw", 1, &PerceptionCore::imageCallback, this);
-    m_depth_image_sub = m_nh.subscribe("/l515/aligned_depth_to_color/image_raw", 1, &PerceptionCore::depthImageCallback, 
-    this);
+    // m_depth_image_sub = m_nh.subscribe("/l515/aligned_depth_to_color/image_raw", 1, &PerceptionCore::depthImageCallback, 
+    // this);
     m_cropped_cloud_pub = m_nh.advertise<sensor_msgs::PointCloud2>("/l515/points/cropped", 1);
     m_processed_cloud_pub = m_nh.advertise<sensor_msgs::PointCloud2>("/l515/points/processed", 1);
+    m_cluster_cloud_pub = m_nh.advertise<sensor_msgs::PointCloud2>("/l515/points/cluster", 1);
     m_processed_image_pub = m_nh.advertise<sensor_msgs::Image>("/l515/image/processed", 1);
     m_foreground_image_pub = m_nh.advertise<sensor_msgs::Image>("/l515/image/foreground", 1);
     m_depth_image_pub = m_nh.advertise<sensor_msgs::Image>("/l515/image/depth", 1);
@@ -90,10 +98,19 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
     m_processed_cloud_pub.publish(masked_cloud_msg);
 
     // connected component analysis
-    cv::Mat labels;
-    int num_labels;
-    imageCluster(foreground_mask, labels, num_labels);
-    ROS_INFO_STREAM("Number of labels: " << num_labels);
+    imageCluster(foreground_mask, m_image_labels, m_num_labels);
+
+    // get cluster clouds
+    auto cluster_clouds = getClusterClouds<pcl::PointXYZRGB>(ordered_masked_cloud, m_image_labels, m_num_labels);
+
+    // colorize the cluster clouds
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_clustered_cloud = colorizeClusters<pcl::PointXYZRGB>(cluster_clouds,
+    m_colors);
+    sensor_msgs::PointCloud2 colored_clustered_cloud_msg;
+    pcl::toROSMsg(*colored_clustered_cloud, colored_clustered_cloud_msg);
+    colored_clustered_cloud_msg.header.frame_id = msg->header.frame_id;
+    colored_clustered_cloud_msg.header.stamp = msg->header.stamp;
+    m_cluster_cloud_pub.publish(colored_clustered_cloud_msg);
 }
 
 void PerceptionCore::imageCallback(const sensor_msgs::ImageConstPtr& msg)
@@ -123,48 +140,48 @@ void PerceptionCore::imageCallback(const sensor_msgs::ImageConstPtr& msg)
     m_processed_image_pub.publish(out_msg.toImageMsg());
 }
 
-void PerceptionCore::depthImageCallback(const sensor_msgs::ImageConstPtr& msg) {
-    // convert to cv::Mat
-    cv_bridge::CvImagePtr cv_ptr;
-    try
-    {
-        cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::TYPE_32FC1);
-    }
-    catch (cv_bridge::Exception& e)
-    {
-        ROS_ERROR("cv_bridge exception: %s", e.what());
-        return;
-    }
-    // get the image
-    cv::Mat image = cv_ptr->image;
+// void PerceptionCore::depthImageCallback(const sensor_msgs::ImageConstPtr& msg) {
+//     // convert to cv::Mat
+//     cv_bridge::CvImagePtr cv_ptr;
+//     try
+//     {
+//         cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::TYPE_32FC1);
+//     }
+//     catch (cv_bridge::Exception& e)
+//     {
+//         ROS_ERROR("cv_bridge exception: %s", e.what());
+//         return;
+//     }
+//     // get the image
+//     cv::Mat image = cv_ptr->image;
 
-    // auto contour_image = detectContour(image);
-    // cv_bridge::CvImage contour_msg;
-    // contour_msg.header.stamp = msg->header.stamp;
-    // contour_msg.header.frame_id = msg->header.frame_id;
-    // contour_msg.encoding = sensor_msgs::image_encodings::MONO8;
-    // contour_msg.image = contour_image;
-    // m_depth_image_pub.publish(contour_msg.toImageMsg());
+//     // auto contour_image = detectContour(image);
+//     // cv_bridge::CvImage contour_msg;
+//     // contour_msg.header.stamp = msg->header.stamp;
+//     // contour_msg.header.frame_id = msg->header.frame_id;
+//     // contour_msg.encoding = sensor_msgs::image_encodings::MONO8;
+//     // contour_msg.image = contour_image;
+//     // m_depth_image_pub.publish(contour_msg.toImageMsg());
 
-    // // mask depth image
-    // auto masked_image = maskDepthImage(image, m_foreground_cloud_mask);
-    // cv_bridge::CvImage masked_msg;
-    // masked_msg.header.stamp = msg->header.stamp;
-    // masked_msg.header.frame_id = msg->header.frame_id;
-    // masked_msg.encoding = sensor_msgs::image_encodings::TYPE_32FC1;
-    // masked_msg.image = masked_image;
-    // m_depth_image_pub.publish(masked_msg.toImageMsg());
+//     // // mask depth image
+//     // auto masked_image = maskDepthImage(image, m_foreground_cloud_mask);
+//     // cv_bridge::CvImage masked_msg;
+//     // masked_msg.header.stamp = msg->header.stamp;
+//     // masked_msg.header.frame_id = msg->header.frame_id;
+//     // masked_msg.encoding = sensor_msgs::image_encodings::TYPE_32FC1;
+//     // masked_msg.image = masked_image;
+//     // m_depth_image_pub.publish(masked_msg.toImageMsg());
 
-    // // outlier removal
-    // auto filtered_image = outlierRemoval(image, m_foreground_cloud_mask, 0.02);
-    // cv_bridge::CvImage filtered_msg;
-    // filtered_msg.header.stamp = msg->header.stamp;
-    // filtered_msg.header.frame_id = msg->header.frame_id;
-    // filtered_msg.encoding = sensor_msgs::image_encodings::TYPE_32FC1;
-    // filtered_msg.image = filtered_image;
-    // m_processed_depth_image_pub.publish(filtered_msg.toImageMsg());
+//     // // outlier removal
+//     // auto filtered_image = outlierRemoval(image, m_foreground_cloud_mask, 0.02);
+//     // cv_bridge::CvImage filtered_msg;
+//     // filtered_msg.header.stamp = msg->header.stamp;
+//     // filtered_msg.header.frame_id = msg->header.frame_id;
+//     // filtered_msg.encoding = sensor_msgs::image_encodings::TYPE_32FC1;
+//     // filtered_msg.image = filtered_image;
+//     // m_processed_depth_image_pub.publish(filtered_msg.toImageMsg());
 
-}
+// }
 
 template <typename T>
 void PerceptionCore::planeSegmentation(const typename pcl::PointCloud<T>::Ptr cloud, int max_iterations, 
@@ -662,6 +679,61 @@ void PerceptionCore::imageCluster(const cv::Mat& mask, cv::Mat& labels, int& num
     }
     }
     num_labels = label_count;
+}
+
+template <typename T>
+std::vector<typename pcl::PointCloud<T>::Ptr> PerceptionCore::getClusterClouds(const typename OrderedCloud<T>::Ptr ordered_cloud,
+const cv::Mat& labels, const int& num_labels) {
+    // get the point clouds of each cluster
+    std::vector<typename pcl::PointCloud<T>::Ptr> cluster_clouds(num_labels);
+    for (int i = 0; i < num_labels; i++) {
+        cluster_clouds[i] = typename pcl::PointCloud<T>::Ptr(new pcl::PointCloud<T>);
+    }
+    for (size_t i = 0; i < ordered_cloud->cloud->height; i++) {
+    for (size_t j = 0; j < ordered_cloud->cloud->width; j++) {
+        int x = ordered_cloud->start_x + j;
+        int y = ordered_cloud->start_y + i;
+        if (labels.at<int>(y, x) == -1) {
+            continue;
+        }
+        // check if the point is valid
+        if (std::isnan(ordered_cloud->cloud->points[i * ordered_cloud->cloud->width + j].x)) {
+            continue;
+        }
+        cluster_clouds[labels.at<int>(y, x)]->points.push_back(ordered_cloud->cloud->points[i * 
+        ordered_cloud->cloud->width + j]);
+    }
+    }
+    for (int i = 0; i < num_labels; i++) {
+        cluster_clouds[i]->width = cluster_clouds[i]->points.size();
+        cluster_clouds[i]->height = 1;
+        cluster_clouds[i]->is_dense = true;
+    }
+    return cluster_clouds;
+}
+
+template <typename T>
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr PerceptionCore::colorizeClusters(std::vector<typename pcl::PointCloud<T>::Ptr> cluster_clouds,
+std::vector<cv::Vec3b> colors) {
+    // colorize the clusters
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+    auto num_colors = colors.size();
+    for (size_t i = 0; i < cluster_clouds.size(); i++) {
+        for (size_t j = 0; j < cluster_clouds[i]->points.size(); j++) {
+            pcl::PointXYZRGB point;
+            point.x = cluster_clouds[i]->points[j].x;
+            point.y = cluster_clouds[i]->points[j].y;
+            point.z = cluster_clouds[i]->points[j].z;
+            point.r = colors[i % num_colors][0];
+            point.g = colors[i % num_colors][1];
+            point.b = colors[i % num_colors][2];
+            colored_cloud->points.push_back(point);
+        }
+    }
+    colored_cloud->width = colored_cloud->points.size();
+    colored_cloud->height = 1;
+    colored_cloud->is_dense = true;
+    return colored_cloud;
 }
 
 int main(int argc, char** argv)

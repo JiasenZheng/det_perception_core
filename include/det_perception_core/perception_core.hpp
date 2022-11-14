@@ -50,7 +50,7 @@ public:
     void run();
     void pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg);
     void imageCallback(const sensor_msgs::ImageConstPtr& msg);
-    void depthImageCallback(const sensor_msgs::ImageConstPtr& msg);
+    // void depthImageCallback(const sensor_msgs::ImageConstPtr& msg);
     template <typename T>
     typename OrderedCloud<T>::Ptr shrinkOrderedCloud(const typename OrderedCloud<T>::Ptr ordered_cloud);
     template <typename T>
@@ -91,23 +91,33 @@ public:
     typename OrderedCloud<T>::Ptr maskOrderedCloud(const typename OrderedCloud<T>::Ptr ordered_cloud, 
     const cv::Mat& mask);
     void imageCluster(const cv::Mat& mask, cv::Mat& labels, int& num_labels);
+    template <typename T>
+    std::vector<typename pcl::PointCloud<T>::Ptr> getClusterClouds(const typename OrderedCloud<T>::Ptr ordered_cloud,
+    const cv::Mat& labels, const int& num_labels);
+    template <typename T>
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr colorizeClusters(std::vector<typename pcl::PointCloud<T>::Ptr> cluster_clouds,
+    std::vector<cv::Vec3b> colors);
 
 private:
     int m_image_count;
     int m_margin_pixels;
+    int m_num_labels;
     std::vector<double> m_plane_limits;
+    std::vector<cv::Vec3b> m_colors;
     pcl::ModelCoefficients::Ptr m_plane_coefficients;
     cv::Mat m_background_image;
     cv::Mat m_foreground_image_mask;
     cv::Mat m_foreground_cloud_mask;
+    cv::Mat m_image_labels;
     std::string m_background_image_path;
     ros::NodeHandle m_nh;
     std::string m_lidar_topic;
     ros::Subscriber m_pointcloud_sub;
     ros::Subscriber m_rgb_image_sub;
-    ros::Subscriber m_depth_image_sub;
+    // ros::Subscriber m_depth_image_sub;
     ros::Publisher m_cropped_cloud_pub;
     ros::Publisher m_processed_cloud_pub;
+    ros::Publisher m_cluster_cloud_pub;
     ros::Publisher m_processed_image_pub;
     ros::Publisher m_foreground_image_pub;
     ros::Publisher m_depth_image_pub;
