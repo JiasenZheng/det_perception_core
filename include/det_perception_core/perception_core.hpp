@@ -50,6 +50,7 @@ public:
     void run();
     void pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg);
     void imageCallback(const sensor_msgs::ImageConstPtr& msg);
+    void depthImageCallback(const sensor_msgs::ImageConstPtr& msg);
     template <typename T>
     typename OrderedCloud<T>::Ptr shrinkOrderedCloud(const typename OrderedCloud<T>::Ptr ordered_cloud);
     template <typename T>
@@ -73,7 +74,7 @@ public:
     cv::Mat imageBackgroundSubtraction(const cv::Mat& image, const cv::Mat& background, const int& threshold);
     template <typename T>
     typename OrderedCloud<T>::Ptr removePlane(const typename OrderedCloud<T>::Ptr ordered_cloud,
-    const cv::Mat& foreground_mask, const pcl::ModelCoefficients::Ptr coefficients, const double& distance_threshold);
+    const pcl::ModelCoefficients::Ptr coefficients, const double& distance_threshold);
     template <typename T>
     void getPlaneLimits(const typename pcl::PointCloud<T>::Ptr cloud, const pcl::PointIndices::Ptr inliers, 
     std::vector<double>& limits);
@@ -82,20 +83,32 @@ public:
     template <typename T>
     cv::Mat orderedCloudToMask(const typename OrderedCloud<T>::Ptr ordered_cloud, const int& width, const int& height);
     void imageCluster(const cv::Mat& mask, cv::Mat& labels, int& num_labels, const int& pixel_threshold);
+    cv::Mat detectContour(const cv::Mat& depth_image);
+    cv::Mat maskDepthImage(const cv::Mat& depth_image, const cv::Mat& mask);
+    cv::Mat outlierRemoval(const cv::Mat& depth_image, const cv::Mat& mask, const int& threshold);
+    cv::Mat denoiseMask(const cv::Mat& mask, const int& kernel_size);
+    template <typename T>
+    typename OrderedCloud<T>::Ptr maskOrderedCloud(const typename OrderedCloud<T>::Ptr ordered_cloud, 
+    const cv::Mat& mask);
+
 private:
     int m_image_count;
     int m_margin_pixels;
     std::vector<double> m_plane_limits;
+    pcl::ModelCoefficients::Ptr m_plane_coefficients;
     cv::Mat m_background_image;
     cv::Mat m_foreground_image_mask;
+    cv::Mat m_foreground_cloud_mask;
     std::string m_background_image_path;
     ros::NodeHandle m_nh;
     std::string m_lidar_topic;
     ros::Subscriber m_pointcloud_sub;
-    ros::Subscriber m_image_sub;
+    ros::Subscriber m_rgb_image_sub;
+    ros::Subscriber m_depth_image_sub;
     ros::Publisher m_cropped_cloud_pub;
     ros::Publisher m_processed_cloud_pub;
     ros::Publisher m_processed_image_pub;
     ros::Publisher m_foreground_image_pub;
-    pcl::ModelCoefficients::Ptr m_plane_coefficients;
+    ros::Publisher m_depth_image_pub;
+    ros::Publisher m_processed_depth_image_pub;
 };

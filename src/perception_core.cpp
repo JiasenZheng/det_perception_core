@@ -12,14 +12,19 @@ PerceptionCore::PerceptionCore(ros::NodeHandle nh): m_nh(nh)
     m_image_count = 100;
     m_background_image_path = "/home/jiasen/det_ws/src/det_perception_core/image/background.png";
     m_foreground_image_mask = cv::Mat::zeros(720, 1280, CV_8UC1);
+    m_foreground_cloud_mask = cv::Mat::zeros(720, 1280, CV_8UC1);
     m_background_image = cv::imread(m_background_image_path, cv::IMREAD_COLOR);
     m_lidar_topic = "/l515/depth_registered/points";
     m_pointcloud_sub = m_nh.subscribe(m_lidar_topic, 1, &PerceptionCore::pointcloudCallback, this);
-    m_image_sub = m_nh.subscribe("/l515/color/image_raw", 1, &PerceptionCore::imageCallback, this);
+    m_rgb_image_sub = m_nh.subscribe("/l515/color/image_raw", 1, &PerceptionCore::imageCallback, this);
+    m_depth_image_sub = m_nh.subscribe("/l515/aligned_depth_to_color/image_raw", 1, &PerceptionCore::depthImageCallback, 
+    this);
     m_cropped_cloud_pub = m_nh.advertise<sensor_msgs::PointCloud2>("/l515/points/cropped", 1);
     m_processed_cloud_pub = m_nh.advertise<sensor_msgs::PointCloud2>("/l515/points/processed", 1);
     m_processed_image_pub = m_nh.advertise<sensor_msgs::Image>("/l515/image/processed", 1);
     m_foreground_image_pub = m_nh.advertise<sensor_msgs::Image>("/l515/image/foreground", 1);
+    m_depth_image_pub = m_nh.advertise<sensor_msgs::Image>("/l515/image/depth", 1);
+    m_processed_depth_image_pub = m_nh.advertise<sensor_msgs::Image>("/l515/image/depth/processed", 1);
 }
 
 void PerceptionCore::run()
@@ -56,52 +61,33 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
         m_plane_coefficients = coefficients;
         return;
     }
-    auto ordered_filtered_cloud = removePlane<pcl::PointXYZRGB>(ordered_cropped_cloud, m_foreground_image_mask, 
-    m_plane_coefficients, 0.01);
-    sensor_msgs::PointCloud2 cloud_msg;
-    pcl::toROSMsg(*ordered_filtered_cloud->cloud, cloud_msg);
-    cloud_msg.header.frame_id = msg->header.frame_id;
-    cloud_msg.header.stamp = msg->header.stamp;
-    m_processed_cloud_pub.publish(cloud_msg);
-    // convert ordered cloud to image
-    auto foreground_rgb_image = orderedCloudToImage<pcl::PointXYZRGB>(ordered_filtered_cloud, 1280, 720);
-    cv_bridge::CvImage foreground_rgb_msg;
-    foreground_rgb_msg.header.stamp = msg->header.stamp;
-    foreground_rgb_msg.header.frame_id = msg->header.frame_id;
-    foreground_rgb_msg.encoding = sensor_msgs::image_encodings::BGR8;
-    foreground_rgb_msg.image = foreground_rgb_image;
-    m_foreground_image_pub.publish(foreground_rgb_msg.toImageMsg());
+    auto ordered_filtered_cloud = removePlane<pcl::PointXYZRGB>(ordered_cropped_cloud, m_plane_coefficients, 0.01);
 
+    // convert ordered cloud to mask
+    m_foreground_cloud_mask = orderedCloudToMask<pcl::PointXYZRGB>(ordered_filtered_cloud, 1280, 720);
+    cv_bridge::CvImage foreground_mask_msg;
+    foreground_mask_msg.header.stamp = msg->header.stamp;
+    foreground_mask_msg.header.frame_id = msg->header.frame_id;
+    foreground_mask_msg.encoding = sensor_msgs::image_encodings::MONO8;
+    foreground_mask_msg.image = m_foreground_cloud_mask;
+    m_foreground_image_pub.publish(foreground_mask_msg.toImageMsg());
 
-    // // convert ordered cloud to mask
-    // auto foreground_mask = orderedCloudToMask<pcl::PointXYZRGB>(ordered_filtered_cloud, 1280, 720);
-    // cv_bridge::CvImage foreground_mask_msg;
-    // foreground_mask_msg.header.stamp = msg->header.stamp;
-    // foreground_mask_msg.header.frame_id = msg->header.frame_id;
-    // foreground_mask_msg.encoding = sensor_msgs::image_encodings::MONO8;
-    // foreground_mask_msg.image = foreground_mask;
-    // m_foreground_image_pub.publish(foreground_mask_msg.toImageMsg());
+    // remove noise in the mask
+    auto foreground_mask = denoiseMask(m_foreground_cloud_mask, 11); 
+    cv_bridge::CvImage foreground_mask_msg2;
+    foreground_mask_msg2.header.stamp = msg->header.stamp;
+    foreground_mask_msg2.header.frame_id = msg->header.frame_id;
+    foreground_mask_msg2.encoding = sensor_msgs::image_encodings::MONO8;
+    foreground_mask_msg2.image = foreground_mask;
+    m_processed_depth_image_pub.publish(foreground_mask_msg2.toImageMsg());
 
-
-    // // connect components
-    // cv::Mat labels;
-    // int num_labels;
-    // imageCluster(foreground_mask, labels, num_labels, 3000);
-    // // log the number of labels
-    // ROS_INFO_STREAM("Number of labels: " << num_labels);
-    // // convert labels to image
-    // cv::Mat labels_image;
-    // labels.convertTo(labels_image, CV_8UC1);
-    // // magnify the label values
-    // labels_image *= 255 / num_labels;
-    // cv::applyColorMap(labels_image, labels_image, cv::COLORMAP_JET);
-    // cv_bridge::CvImage labels_image_msg;
-    // labels_image_msg.header.stamp = msg->header.stamp;
-    // labels_image_msg.header.frame_id = msg->header.frame_id;
-    // labels_image_msg.encoding = sensor_msgs::image_encodings::BGR8;
-    // labels_image_msg.image = labels_image;
-    // m_foreground_image_pub.publish(labels_image_msg.toImageMsg());
-
+    // mask the ordered cloud
+    auto ordered_masked_cloud = maskOrderedCloud<pcl::PointXYZRGB>(ordered_filtered_cloud, foreground_mask);
+    sensor_msgs::PointCloud2 masked_cloud_msg;
+    pcl::toROSMsg(*ordered_masked_cloud->cloud, masked_cloud_msg);
+    masked_cloud_msg.header.frame_id = msg->header.frame_id;
+    masked_cloud_msg.header.stamp = msg->header.stamp;
+    m_processed_cloud_pub.publish(masked_cloud_msg);
 }
 
 void PerceptionCore::imageCallback(const sensor_msgs::ImageConstPtr& msg)
@@ -129,6 +115,49 @@ void PerceptionCore::imageCallback(const sensor_msgs::ImageConstPtr& msg)
     out_msg.encoding = sensor_msgs::image_encodings::MONO8;
     out_msg.image = m_foreground_image_mask;
     m_processed_image_pub.publish(out_msg.toImageMsg());
+}
+
+void PerceptionCore::depthImageCallback(const sensor_msgs::ImageConstPtr& msg) {
+    // convert to cv::Mat
+    cv_bridge::CvImagePtr cv_ptr;
+    try
+    {
+        cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::TYPE_32FC1);
+    }
+    catch (cv_bridge::Exception& e)
+    {
+        ROS_ERROR("cv_bridge exception: %s", e.what());
+        return;
+    }
+    // get the image
+    cv::Mat image = cv_ptr->image;
+
+    // auto contour_image = detectContour(image);
+    // cv_bridge::CvImage contour_msg;
+    // contour_msg.header.stamp = msg->header.stamp;
+    // contour_msg.header.frame_id = msg->header.frame_id;
+    // contour_msg.encoding = sensor_msgs::image_encodings::MONO8;
+    // contour_msg.image = contour_image;
+    // m_depth_image_pub.publish(contour_msg.toImageMsg());
+
+    // // mask depth image
+    // auto masked_image = maskDepthImage(image, m_foreground_cloud_mask);
+    // cv_bridge::CvImage masked_msg;
+    // masked_msg.header.stamp = msg->header.stamp;
+    // masked_msg.header.frame_id = msg->header.frame_id;
+    // masked_msg.encoding = sensor_msgs::image_encodings::TYPE_32FC1;
+    // masked_msg.image = masked_image;
+    // m_depth_image_pub.publish(masked_msg.toImageMsg());
+
+    // // outlier removal
+    // auto filtered_image = outlierRemoval(image, m_foreground_cloud_mask, 0.02);
+    // cv_bridge::CvImage filtered_msg;
+    // filtered_msg.header.stamp = msg->header.stamp;
+    // filtered_msg.header.frame_id = msg->header.frame_id;
+    // filtered_msg.encoding = sensor_msgs::image_encodings::TYPE_32FC1;
+    // filtered_msg.image = filtered_image;
+    // m_processed_depth_image_pub.publish(filtered_msg.toImageMsg());
+
 }
 
 template <typename T>
@@ -257,7 +286,7 @@ const int& threshold) {
 
 template <typename T>
 typename OrderedCloud<T>::Ptr PerceptionCore::removePlane(const typename OrderedCloud<T>::Ptr ordered_cloud,
-const cv::Mat& foreground_mask, const pcl::ModelCoefficients::Ptr coefficients, const double& distance_threshold) {
+const pcl::ModelCoefficients::Ptr coefficients, const double& distance_threshold) {
     // get ordered_cloud information
     int start_x = ordered_cloud->start_x;
     int start_y = ordered_cloud->start_y;
@@ -290,7 +319,8 @@ const cv::Mat& foreground_mask, const pcl::ModelCoefficients::Ptr coefficients, 
                 continue;
             }
             // set the point to be invalid if it is too close to the plane and the foreground mask is 0
-            if (distance < distance_threshold && foreground_mask.at<uchar>(i + start_y, j + start_x) == 0) {
+            // if (distance < distance_threshold && m_foreground_image_mask.at<uchar>(i + start_y, j + start_x) == 0) {
+            if (distance < distance_threshold) {
                 cloud_filtered->points[idx].x = std::numeric_limits<float>::quiet_NaN();
                 cloud_filtered->points[idx].y = std::numeric_limits<float>::quiet_NaN();
                 cloud_filtered->points[idx].z = std::numeric_limits<float>::quiet_NaN();
@@ -495,6 +525,107 @@ void PerceptionCore::imageCluster(const cv::Mat& mask, cv::Mat& labels, int& num
     std::cout << "max pixels: " << max_pixels << std::endl;
     std::cout << "min pixels: " << min_pixels << std::endl;
 }
+
+cv::Mat PerceptionCore::detectContour(const cv::Mat& depth_image) {
+    // convert image to cv_8u
+    cv::Mat depth_image_8u;
+    depth_image.convertTo(depth_image_8u, CV_8U);
+    // detect the contour
+    cv::Mat contour;
+    cv::Canny(depth_image_8u, contour, 100, 200);
+    return contour;
+}
+
+cv::Mat PerceptionCore::maskDepthImage(const cv::Mat& depth_image, const cv::Mat& mask) {
+    // mask the depth image
+    cv::Mat masked_depth_image;
+    depth_image.copyTo(masked_depth_image, mask);
+    return masked_depth_image;
+}
+
+cv::Mat PerceptionCore::outlierRemoval(const cv::Mat& depth_image, const cv::Mat& mask, const int& threshold) {
+    cv::Mat masked_depth_image;
+    depth_image.copyTo(masked_depth_image, mask);
+    // remove the outliers
+    int num_rows = masked_depth_image.rows;
+    int num_cols = masked_depth_image.cols;
+    for (int i = 0; i < num_rows; i++) {
+    for (int j = 0; j < num_cols; j++) {
+        if (masked_depth_image.at<uchar>(i, j) == 0) {
+            continue;
+        }
+        // int neighbor_count = 0;
+        int outlier_count = 0;
+        for (int k = -1; k <= 1; k++) {
+        for (int l = -1; l <= 1; l++) {
+            if (i + k < 0 || i + k >= num_rows || j + l < 0 || j + l >= num_cols) {
+                continue;
+            }
+            if (masked_depth_image.at<uchar>(i + k, j + l) == 0) {
+                continue;
+            }
+            // neighbor_count++;
+            if (std::abs(masked_depth_image.at<uchar>(i, j) - masked_depth_image.at<uchar>(i + k, j + l)) > threshold) {
+                outlier_count++;
+            }
+        }
+        // // remove if have too few neighbors
+        // if (neighbor_count < 4) {
+        //     masked_depth_image.at<uchar>(i, j) = 0;
+        // }
+        // remove if too many outliers
+        if (outlier_count > 2) {
+            masked_depth_image.at<uchar>(i, j) = 0;
+        }
+        }
+    }
+    }
+    return masked_depth_image;
+}
+
+template <typename T>
+typename OrderedCloud<T>::Ptr PerceptionCore::maskOrderedCloud(const typename OrderedCloud<T>::Ptr ordered_cloud,
+const cv::Mat& mask) {
+    // mask the ordered point cloud
+    typename OrderedCloud<T>::Ptr masked_ordered_cloud(new OrderedCloud<T>);
+    masked_ordered_cloud->cloud = typename pcl::PointCloud<T>::Ptr(new pcl::PointCloud<T>);
+    masked_ordered_cloud->start_x = ordered_cloud->start_x;
+    masked_ordered_cloud->start_y = ordered_cloud->start_y;
+    masked_ordered_cloud->cloud->width = ordered_cloud->cloud->width;
+    masked_ordered_cloud->cloud->height = ordered_cloud->cloud->height;
+    masked_ordered_cloud->cloud->is_dense = false;
+    masked_ordered_cloud->cloud->points.resize(masked_ordered_cloud->cloud->width * masked_ordered_cloud->cloud->height);
+    for (size_t i = 0; i < ordered_cloud->cloud->height; i++) {
+        for (size_t j = 0; j < ordered_cloud->cloud->width; j++) {
+            int x = ordered_cloud->start_x + j;
+            int y = ordered_cloud->start_y + i;
+            if ((mask.at<uchar>(y, x) == 255) && 
+            (!std::isnan(ordered_cloud->cloud->points[i * ordered_cloud->cloud->width + j].x))) {
+                masked_ordered_cloud->cloud->points[i * ordered_cloud->cloud->width + j] = 
+                ordered_cloud->cloud->points[i * ordered_cloud->cloud->width + j];
+            }
+            else {
+                masked_ordered_cloud->cloud->points[i * ordered_cloud->cloud->width + j].x = 
+                std::numeric_limits<float>::quiet_NaN();
+                masked_ordered_cloud->cloud->points[i * ordered_cloud->cloud->width + j].y = 
+                std::numeric_limits<float>::quiet_NaN();
+                masked_ordered_cloud->cloud->points[i * ordered_cloud->cloud->width + j].z = 
+                std::numeric_limits<float>::quiet_NaN();
+            }
+        }
+    }
+    return masked_ordered_cloud;
+}
+
+cv::Mat PerceptionCore::denoiseMask(const cv::Mat& mask, const int& kernel_size) {
+    // remove noise in the mask
+    cv::Mat denoised_mask = mask.clone();
+    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(kernel_size, kernel_size));
+    cv::morphologyEx(denoised_mask, denoised_mask, cv::MORPH_OPEN, kernel);
+    cv::morphologyEx(denoised_mask, denoised_mask, cv::MORPH_CLOSE, kernel);
+    return denoised_mask;
+}
+
 
 int main(int argc, char** argv)
 {
