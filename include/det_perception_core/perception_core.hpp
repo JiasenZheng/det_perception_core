@@ -90,6 +90,7 @@ public:
     template <typename T>
     typename OrderedCloud<T>::Ptr maskOrderedCloud(const typename OrderedCloud<T>::Ptr ordered_cloud, 
     const cv::Mat& mask);
+    void imageCluster(const cv::Mat& mask, cv::Mat& labels, int& num_labels);
 
 private:
     int m_image_count;

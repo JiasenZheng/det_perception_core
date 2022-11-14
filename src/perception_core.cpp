@@ -88,6 +88,12 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
     masked_cloud_msg.header.frame_id = msg->header.frame_id;
     masked_cloud_msg.header.stamp = msg->header.stamp;
     m_processed_cloud_pub.publish(masked_cloud_msg);
+
+    // connected component analysis
+    cv::Mat labels;
+    int num_labels;
+    imageCluster(foreground_mask, labels, num_labels);
+    ROS_INFO_STREAM("Number of labels: " << num_labels);
 }
 
 void PerceptionCore::imageCallback(const sensor_msgs::ImageConstPtr& msg)
@@ -594,7 +600,8 @@ const cv::Mat& mask) {
     masked_ordered_cloud->cloud->width = ordered_cloud->cloud->width;
     masked_ordered_cloud->cloud->height = ordered_cloud->cloud->height;
     masked_ordered_cloud->cloud->is_dense = false;
-    masked_ordered_cloud->cloud->points.resize(masked_ordered_cloud->cloud->width * masked_ordered_cloud->cloud->height);
+    masked_ordered_cloud->cloud->points.resize(masked_ordered_cloud->cloud->width * 
+    masked_ordered_cloud->cloud->height);
     for (size_t i = 0; i < ordered_cloud->cloud->height; i++) {
         for (size_t j = 0; j < ordered_cloud->cloud->width; j++) {
             int x = ordered_cloud->start_x + j;
@@ -626,6 +633,36 @@ cv::Mat PerceptionCore::denoiseMask(const cv::Mat& mask, const int& kernel_size)
     return denoised_mask;
 }
 
+void PerceptionCore::imageCluster(const cv::Mat& mask, cv::Mat& labels, int& num_labels) {
+    // find the connected components
+    cv::Mat mask_8u;
+    mask.convertTo(mask_8u, CV_8U);
+    num_labels = cv::connectedComponents(mask_8u, labels);
+    // remove the background
+    for (int i = 0; i < labels.rows; i++) {
+    for (int j = 0; j < labels.cols; j++) {
+        if (labels.at<int>(i, j) == 0) {
+            labels.at<int>(i, j) = -1;
+        }
+    }
+    }
+    // relabel the components
+    std::vector<int> label_map(num_labels, -1);
+    int label_count = 0;
+    for (int i = 0; i < labels.rows; i++) {
+    for (int j = 0; j < labels.cols; j++) {
+        if (labels.at<int>(i, j) == -1) {
+            continue;
+        }
+        if (label_map[labels.at<int>(i, j)] == -1) {
+            label_map[labels.at<int>(i, j)] = label_count;
+            label_count++;
+        }
+        labels.at<int>(i, j) = label_map[labels.at<int>(i, j)];
+    }
+    }
+    num_labels = label_count;
+}
 
 int main(int argc, char** argv)
 {
