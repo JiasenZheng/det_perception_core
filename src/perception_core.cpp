@@ -104,7 +104,7 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
     auto cluster_clouds = getClusterClouds<pcl::PointXYZRGB>(ordered_masked_cloud, m_image_labels, m_num_labels);
 
     // colorize the cluster clouds
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_clustered_cloud = colorizeClusters<pcl::PointXYZRGB>(cluster_clouds,
+    auto colored_clustered_cloud = colorizeClusters<pcl::PointXYZ>(cluster_clouds,
     m_colors);
     sensor_msgs::PointCloud2 colored_clustered_cloud_msg;
     pcl::toROSMsg(*colored_clustered_cloud, colored_clustered_cloud_msg);
@@ -706,15 +706,56 @@ void PerceptionCore::imageCluster(const cv::Mat& mask, cv::Mat& labels, int& num
     num_labels = label_count;
 }
 
+// template <typename T>
+// std::vector<typename pcl::PointCloud<T>::Ptr> PerceptionCore::getClusterClouds(
+// const typename OrderedCloud<T>::Ptr ordered_cloud,
+// const cv::Mat& labels, const int& num_labels) {
+//     // get the point clouds of each cluster
+//     std::vector<typename pcl::PointCloud<T>::Ptr> cluster_clouds(num_labels);
+//     for (int i = 0; i < num_labels; i++) {
+//         cluster_clouds[i] = typename pcl::PointCloud<T>::Ptr(new pcl::PointCloud<T>);
+//     }
+//     for (size_t i = 0; i < ordered_cloud->cloud->height; i++) {
+//     for (size_t j = 0; j < ordered_cloud->cloud->width; j++) {
+//         int x = ordered_cloud->start_x + j;
+//         int y = ordered_cloud->start_y + i;
+//         if (labels.at<int>(y, x) == -1) {
+//             continue;
+//         }
+//         // check if the point is valid
+//         if (std::isnan(ordered_cloud->cloud->points[i * ordered_cloud->cloud->width + j].x)) {
+//             continue;
+//         }
+//         cluster_clouds[labels.at<int>(y, x)]->points.push_back(ordered_cloud->cloud->points[i * 
+//         ordered_cloud->cloud->width + j]);
+//     }
+//     }
+//     for (int i = 0; i < num_labels; i++) {
+//         cluster_clouds[i]->width = cluster_clouds[i]->points.size();
+//         cluster_clouds[i]->height = 1;
+//         cluster_clouds[i]->is_dense = true;
+//     }
+//     return cluster_clouds;
+// }
+
 template <typename T>
-std::vector<typename pcl::PointCloud<T>::Ptr> PerceptionCore::getClusterClouds(
-const typename OrderedCloud<T>::Ptr ordered_cloud,
+std::vector<OrderedCloud<pcl::PointXYZ>::Ptr> PerceptionCore::getClusterClouds(const typename OrderedCloud<T>::Ptr ordered_cloud,
 const cv::Mat& labels, const int& num_labels) {
-    // get the point clouds of each cluster
-    std::vector<typename pcl::PointCloud<T>::Ptr> cluster_clouds(num_labels);
+    // initialize the cluster clouds
+    std::vector<OrderedCloud<pcl::PointXYZ>::Ptr> cluster_clouds;
     for (int i = 0; i < num_labels; i++) {
-        cluster_clouds[i] = typename pcl::PointCloud<T>::Ptr(new pcl::PointCloud<T>);
+        OrderedCloud<pcl::PointXYZ>::Ptr cluster_cloud(new OrderedCloud<pcl::PointXYZ>);
+        cluster_cloud->cloud = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>);
+        cluster_cloud->start_x = ordered_cloud->start_x;
+        cluster_cloud->start_y = ordered_cloud->start_y;
+        cluster_cloud->cloud->width = ordered_cloud->cloud->width;
+        cluster_cloud->cloud->height = ordered_cloud->cloud->height;
+        cluster_cloud->cloud->is_dense = false;
+        cluster_cloud->cloud->points.resize(cluster_cloud->cloud->width * 
+        cluster_cloud->cloud->height);
+        cluster_clouds.push_back(cluster_cloud);
     }
+    // fill the cluster clouds
     for (size_t i = 0; i < ordered_cloud->cloud->height; i++) {
     for (size_t j = 0; j < ordered_cloud->cloud->width; j++) {
         int x = ordered_cloud->start_x + j;
@@ -726,14 +767,17 @@ const cv::Mat& labels, const int& num_labels) {
         if (std::isnan(ordered_cloud->cloud->points[i * ordered_cloud->cloud->width + j].x)) {
             continue;
         }
-        cluster_clouds[labels.at<int>(y, x)]->points.push_back(ordered_cloud->cloud->points[i * 
-        ordered_cloud->cloud->width + j]);
+        cluster_clouds[labels.at<int>(y, x)]->cloud->points[i * ordered_cloud->cloud->width + j].x =
+        ordered_cloud->cloud->points[i * ordered_cloud->cloud->width + j].x;
+        cluster_clouds[labels.at<int>(y, x)]->cloud->points[i * ordered_cloud->cloud->width + j].y =
+        ordered_cloud->cloud->points[i * ordered_cloud->cloud->width + j].y;
+        cluster_clouds[labels.at<int>(y, x)]->cloud->points[i * ordered_cloud->cloud->width + j].z =
+        ordered_cloud->cloud->points[i * ordered_cloud->cloud->width + j].z;
     }
     }
+    // shrink the cluster clouds
     for (int i = 0; i < num_labels; i++) {
-        cluster_clouds[i]->width = cluster_clouds[i]->points.size();
-        cluster_clouds[i]->height = 1;
-        cluster_clouds[i]->is_dense = true;
+        cluster_clouds[i] = shrinkOrderedCloud<pcl::PointXYZ>(cluster_clouds[i]);
     }
     return cluster_clouds;
 }
@@ -751,6 +795,34 @@ std::vector<cv::Vec3b> colors) {
             point.x = cluster_clouds[i]->points[j].x;
             point.y = cluster_clouds[i]->points[j].y;
             point.z = cluster_clouds[i]->points[j].z;
+            point.r = colors[i % num_colors][0];
+            point.g = colors[i % num_colors][1];
+            point.b = colors[i % num_colors][2];
+            colored_cloud->points.push_back(point);
+        }
+    }
+    colored_cloud->width = colored_cloud->points.size();
+    colored_cloud->height = 1;
+    colored_cloud->is_dense = true;
+    return colored_cloud;
+}
+
+template <typename T>
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr PerceptionCore::colorizeClusters(std::vector<typename OrderedCloud<T>::Ptr> cluster_clouds,
+std::vector<cv::Vec3b> colors) {
+    // colorize the clusters
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+    auto num_colors = colors.size();
+    for (size_t i = 0; i < cluster_clouds.size(); i++) {
+        for (size_t j = 0; j < cluster_clouds[i]->cloud->points.size(); j++) {
+            // check if the point is valid
+            if (std::isnan(cluster_clouds[i]->cloud->points[j].x)) {
+                continue;
+            }
+            pcl::PointXYZRGB point;
+            point.x = cluster_clouds[i]->cloud->points[j].x;
+            point.y = cluster_clouds[i]->cloud->points[j].y;
+            point.z = cluster_clouds[i]->cloud->points[j].z;
             point.r = colors[i % num_colors][0];
             point.g = colors[i % num_colors][1];
             point.b = colors[i % num_colors][2];
