@@ -101,11 +101,19 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
     imageCluster(foreground_mask, m_image_labels, m_num_labels);
 
     // get cluster clouds
+    auto start = std::chrono::high_resolution_clock::now();
     auto cluster_clouds = getClusterClouds<pcl::PointXYZRGB>(ordered_masked_cloud, m_image_labels, m_num_labels);
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    ROS_INFO_STREAM("Time taken to get cluster clouds: " << duration.count()/1000000.0 << " seconds");
 
     // colorize the cluster clouds
+    start = std::chrono::high_resolution_clock::now();
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_clustered_cloud = colorizeClusters<pcl::PointXYZRGB>(cluster_clouds,
     m_colors);
+    end = std::chrono::high_resolution_clock::now();
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    ROS_INFO_STREAM("Time taken to colorize clusters: " << duration.count()/1000000.0 << " seconds");
     sensor_msgs::PointCloud2 colored_clustered_cloud_msg;
     pcl::toROSMsg(*colored_clustered_cloud, colored_clustered_cloud_msg);
     colored_clustered_cloud_msg.header.frame_id = msg->header.frame_id;
