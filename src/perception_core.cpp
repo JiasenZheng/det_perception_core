@@ -109,12 +109,12 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
     m_processed_depth_image_pub.publish(image_with_bboxes_msg.toImageMsg());
 
 
-    // // get cluster clouds
-    // auto start = std::chrono::high_resolution_clock::now();
-    // auto cluster_clouds = getClusterClouds<pcl::PointXYZRGB>(ordered_masked_cloud, m_image_labels, m_num_labels);
-    // auto end = std::chrono::high_resolution_clock::now();
-    // auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    // // ROS_INFO_STREAM("Time taken by getClusterClouds: " << duration.count()/1000000.0 << " seconds");
+    // get cluster clouds
+    auto start = std::chrono::high_resolution_clock::now();
+    auto cluster_clouds = getClusterClouds<pcl::PointXYZRGB>(ordered_masked_cloud, m_image_labels, m_num_labels, m_bboxes);
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    // ROS_INFO_STREAM("Time taken by getClusterClouds: " << duration.count()/1000000.0 << " seconds");
 
     // // colorize the cluster clouds
     // start = std::chrono::high_resolution_clock::now();
@@ -129,30 +129,43 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
     // colored_clustered_cloud_msg.header.stamp = msg->header.stamp;
     // m_cluster_cloud_pub.publish(colored_clustered_cloud_msg);
 
-    // // get cluster oriented bounding boxes
-    // // test with the first cluster
-    // pcl::PointCloud<pcl::PointXYZRGB>::Ptr cluster_cloud = cluster_clouds[0];
-    // pcl::MomentOfInertiaEstimation<pcl::PointXYZRGB> feature_extractor;
-    // feature_extractor.setInputCloud(cluster_cloud);
-    // feature_extractor.compute();
-    // pcl::PointXYZRGB min_point_OBB;
-    // pcl::PointXYZRGB max_point_OBB;
-    // pcl::PointXYZRGB position_OBB;
-    // Eigen::Matrix3f rotational_matrix_OBB;
-    // feature_extractor.getOBB(min_point_OBB, max_point_OBB, position_OBB, rotational_matrix_OBB);
+    // get cluster oriented bounding boxes
+    // test with the first cluster
+    start = std::chrono::high_resolution_clock::now();
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cluster_cloud = cluster_clouds[0]->cloud;
+    pcl::MomentOfInertiaEstimation<pcl::PointXYZ> feature_extractor;
+    feature_extractor.setInputCloud(cluster_cloud);
+    // int row_start = cluster_clouds[0]->start_y;
+    // int col_start = cluster_clouds[0]->start_x;
+    int nb_rows = cluster_clouds[0]->cloud->height;
+    int nb_cols = cluster_clouds[0]->cloud->width;
+    // log the totoal number of points in the cluster
+    // ROS_INFO_STREAM("Total number of points in the cluster: " << cluster_cloud->points.size());
+    // log nb_rows and nb_cols
+    // ROS_INFO_STREAM("nb_rows: " << nb_rows << " nb_cols: " << nb_cols);
+    feature_extractor.setIndices(0, 0, nb_rows, nb_cols);
+    feature_extractor.compute();
+    pcl::PointXYZ min_point_OBB;
+    pcl::PointXYZ max_point_OBB;
+    pcl::PointXYZ position_OBB;
+    Eigen::Matrix3f rotational_matrix_OBB;
+    feature_extractor.getOBB(min_point_OBB, max_point_OBB, position_OBB, rotational_matrix_OBB);
+    end = std::chrono::high_resolution_clock::now();
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    ROS_INFO_STREAM("Time taken by getOBB: " << duration.count()/1000000.0 << " seconds");
 
-    // // create a tf transform
-    // tf::Transform transform;
-    // transform.setOrigin(tf::Vector3(position_OBB.x, position_OBB.y, position_OBB.z));
-    // tf::Matrix3x3 tf3d;
-    // tf3d.setValue(rotational_matrix_OBB(0, 0), rotational_matrix_OBB(0, 1), rotational_matrix_OBB(0, 2),
-    // rotational_matrix_OBB(1, 0), rotational_matrix_OBB(1, 1), rotational_matrix_OBB(1, 2),
-    // rotational_matrix_OBB(2, 0), rotational_matrix_OBB(2, 1), rotational_matrix_OBB(2, 2));
-    // // convert to quaternion
-    // tf::Quaternion q;
-    // tf3d.getRotation(q);
-    // transform.setRotation(q);
-    // m_br.sendTransform(tf::StampedTransform(transform, msg->header.stamp, msg->header.frame_id, "cluster_0"));
+    // create a tf transform
+    tf::Transform transform;
+    transform.setOrigin(tf::Vector3(position_OBB.x, position_OBB.y, position_OBB.z));
+    tf::Matrix3x3 tf3d;
+    tf3d.setValue(rotational_matrix_OBB(0, 0), rotational_matrix_OBB(0, 1), rotational_matrix_OBB(0, 2),
+    rotational_matrix_OBB(1, 0), rotational_matrix_OBB(1, 1), rotational_matrix_OBB(1, 2),
+    rotational_matrix_OBB(2, 0), rotational_matrix_OBB(2, 1), rotational_matrix_OBB(2, 2));
+    // convert to quaternion
+    tf::Quaternion q;
+    tf3d.getRotation(q);
+    transform.setRotation(q);
+    m_br.sendTransform(tf::StampedTransform(transform, msg->header.stamp, msg->header.frame_id, "cluster_0"));
 }
 
 void PerceptionCore::imageCallback(const sensor_msgs::ImageConstPtr& msg)
@@ -735,38 +748,6 @@ std::vector<cv::Rect>& bboxes) {
 
 }
 
-// template <typename T>
-// std::vector<typename pcl::PointCloud<T>::Ptr> PerceptionCore::getClusterClouds(
-// const typename OrderedCloud<T>::Ptr ordered_cloud,
-// const cv::Mat& labels, const int& num_labels) {
-//     // get the point clouds of each cluster
-//     std::vector<typename pcl::PointCloud<T>::Ptr> cluster_clouds(num_labels);
-//     for (int i = 0; i < num_labels; i++) {
-//         cluster_clouds[i] = typename pcl::PointCloud<T>::Ptr(new pcl::PointCloud<T>);
-//     }
-//     for (size_t i = 0; i < ordered_cloud->cloud->height; i++) {
-//     for (size_t j = 0; j < ordered_cloud->cloud->width; j++) {
-//         int x = ordered_cloud->start_x + j;
-//         int y = ordered_cloud->start_y + i;
-//         if (labels.at<int>(y, x) == -1) {
-//             continue;
-//         }
-//         // check if the point is valid
-//         if (std::isnan(ordered_cloud->cloud->points[i * ordered_cloud->cloud->width + j].x)) {
-//             continue;
-//         }
-//         cluster_clouds[labels.at<int>(y, x)]->points.push_back(ordered_cloud->cloud->points[i * 
-//         ordered_cloud->cloud->width + j]);
-//     }
-//     }
-//     for (int i = 0; i < num_labels; i++) {
-//         cluster_clouds[i]->width = cluster_clouds[i]->points.size();
-//         cluster_clouds[i]->height = 1;
-//         cluster_clouds[i]->is_dense = true;
-//     }
-//     return cluster_clouds;
-// }
-
 template <typename T>
 std::vector<OrderedCloud<pcl::PointXYZ>::Ptr> PerceptionCore::getClusterClouds(const typename OrderedCloud<T>::Ptr ordered_cloud,
 const cv::Mat& labels, const int& num_labels) {
@@ -810,6 +791,49 @@ const cv::Mat& labels, const int& num_labels) {
     }
     return cluster_clouds;
 }
+
+template <typename T>
+std::vector<OrderedCloud<pcl::PointXYZ>::Ptr> PerceptionCore::getClusterClouds(
+const typename OrderedCloud<T>::Ptr ordered_cloud, const cv::Mat& labels, const int& num_labels,
+const std::vector<cv::Rect>& bboxes) {
+    // initialize the cluster clouds
+    std::vector<OrderedCloud<pcl::PointXYZ>::Ptr> cluster_clouds;
+    for (int i = 0; i < num_labels; i++) {
+        OrderedCloud<pcl::PointXYZ>::Ptr cluster_cloud(new OrderedCloud<pcl::PointXYZ>);
+        cluster_cloud->cloud = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>);
+        cluster_cloud->start_x = bboxes[i].x;
+        cluster_cloud->start_y = bboxes[i].y;
+        cluster_cloud->cloud->width = bboxes[i].width;
+        cluster_cloud->cloud->height = bboxes[i].height;
+        cluster_cloud->cloud->is_dense = false;
+        // fill the cluster clouds
+        for (int j = 0; j < bboxes[i].height; j++) {
+            for (int k = 0; k < bboxes[i].width; k++) {
+                int x = bboxes[i].x + k;
+                int y = bboxes[i].y + j;
+                // create a new point
+                pcl::PointXYZ point;
+                if (labels.at<int>(y, x) != i + 1) {
+                    point.x = std::numeric_limits<float>::quiet_NaN();
+                    point.y = std::numeric_limits<float>::quiet_NaN();
+                    point.z = std::numeric_limits<float>::quiet_NaN();
+                }
+                else {
+                    point.x = ordered_cloud->cloud->points[(y - ordered_cloud->start_y) * ordered_cloud->cloud->width + 
+                    (x - ordered_cloud->start_x)].x;
+                    point.y = ordered_cloud->cloud->points[(y - ordered_cloud->start_y) * ordered_cloud->cloud->width +
+                    (x - ordered_cloud->start_x)].y;
+                    point.z = ordered_cloud->cloud->points[(y - ordered_cloud->start_y) * ordered_cloud->cloud->width +
+                    (x - ordered_cloud->start_x)].z;
+                }
+                cluster_cloud->cloud->points.push_back(point);
+            }
+        }
+        cluster_clouds.push_back(cluster_cloud);
+    }
+    return cluster_clouds;
+}
+
 
 template <typename T>
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr PerceptionCore::colorizeClusters(

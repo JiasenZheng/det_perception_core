@@ -103,6 +103,10 @@ public:
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr colorizeClusters(std::vector<typename OrderedCloud<T>::Ptr> cluster_clouds,
     std::vector<cv::Vec3b> colors);
     cv::Mat drawBboxes(const cv::Mat& image, const std::vector<cv::Rect>& bboxes);
+    template <typename T>
+    std::vector<OrderedCloud<pcl::PointXYZ>::Ptr> getClusterClouds(
+    const typename OrderedCloud<T>::Ptr ordered_cloud, const cv::Mat& labels, const int& num_labels,
+    const std::vector<cv::Rect>& bboxes);
 
 private:
     int m_image_count;
