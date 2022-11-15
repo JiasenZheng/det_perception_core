@@ -9,6 +9,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -fsee -fomit-frame-pointer -fno-sign
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
+  tf
   roscpp
   rospy
   std_msgs
@@ -118,6 +119,7 @@ catkin_package(
  LIBRARIES 
   det_perception_core
  CATKIN_DEPENDS 
+  tf
   roscpp 
   rospy
   std_msgs

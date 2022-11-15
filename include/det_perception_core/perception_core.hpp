@@ -7,6 +7,7 @@
 #pragma once
 
 #include <ros/ros.h>
+#include <tf/transform_broadcaster.h>
 #include <pcl/point_types.h>
 #include <pcl/point_cloud.h>
 #include <pcl_conversions/pcl_conversions.h>
@@ -18,6 +19,7 @@
 #include <pcl/filters/project_inliers.h>
 #include <pcl/filters/passthrough.h>
 #include <pcl/filters/extract_indices.h>
+#include <pcl/features/moment_of_inertia_estimation.h>
 #include <opencv2/opencv.hpp>
 #include <opencv2/calib3d.hpp>
 #include <sensor_msgs/PointCloud2.h>
@@ -102,6 +104,7 @@ private:
     int m_image_count;
     int m_margin_pixels;
     int m_num_labels;
+    tf::TransformBroadcaster m_br;
     std::vector<double> m_plane_limits;
     std::vector<cv::Vec3b> m_colors;
     pcl::ModelCoefficients::Ptr m_plane_coefficients;

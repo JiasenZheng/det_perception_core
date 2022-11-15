@@ -111,6 +111,31 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
     colored_clustered_cloud_msg.header.frame_id = msg->header.frame_id;
     colored_clustered_cloud_msg.header.stamp = msg->header.stamp;
     m_cluster_cloud_pub.publish(colored_clustered_cloud_msg);
+
+    // get cluster oriented bounding boxes
+    // test with the first cluster
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cluster_cloud = cluster_clouds[0];
+    pcl::MomentOfInertiaEstimation<pcl::PointXYZRGB> feature_extractor;
+    feature_extractor.setInputCloud(cluster_cloud);
+    feature_extractor.compute();
+    pcl::PointXYZRGB min_point_OBB;
+    pcl::PointXYZRGB max_point_OBB;
+    pcl::PointXYZRGB position_OBB;
+    Eigen::Matrix3f rotational_matrix_OBB;
+    feature_extractor.getOBB(min_point_OBB, max_point_OBB, position_OBB, rotational_matrix_OBB);
+
+    // create a tf transform
+    tf::Transform transform;
+    transform.setOrigin(tf::Vector3(position_OBB.x, position_OBB.y, position_OBB.z));
+    tf::Matrix3x3 tf3d;
+    tf3d.setValue(rotational_matrix_OBB(0, 0), rotational_matrix_OBB(0, 1), rotational_matrix_OBB(0, 2),
+    rotational_matrix_OBB(1, 0), rotational_matrix_OBB(1, 1), rotational_matrix_OBB(1, 2),
+    rotational_matrix_OBB(2, 0), rotational_matrix_OBB(2, 1), rotational_matrix_OBB(2, 2));
+    // convert to quaternion
+    tf::Quaternion q;
+    tf3d.getRotation(q);
+    transform.setRotation(q);
+    m_br.sendTransform(tf::StampedTransform(transform, msg->header.stamp, msg->header.frame_id, "cluster_0"));
 }
 
 void PerceptionCore::imageCallback(const sensor_msgs::ImageConstPtr& msg)
@@ -682,7 +707,8 @@ void PerceptionCore::imageCluster(const cv::Mat& mask, cv::Mat& labels, int& num
 }
 
 template <typename T>
-std::vector<typename pcl::PointCloud<T>::Ptr> PerceptionCore::getClusterClouds(const typename OrderedCloud<T>::Ptr ordered_cloud,
+std::vector<typename pcl::PointCloud<T>::Ptr> PerceptionCore::getClusterClouds(
+const typename OrderedCloud<T>::Ptr ordered_cloud,
 const cv::Mat& labels, const int& num_labels) {
     // get the point clouds of each cluster
     std::vector<typename pcl::PointCloud<T>::Ptr> cluster_clouds(num_labels);
@@ -713,7 +739,8 @@ const cv::Mat& labels, const int& num_labels) {
 }
 
 template <typename T>
-pcl::PointCloud<pcl::PointXYZRGB>::Ptr PerceptionCore::colorizeClusters(std::vector<typename pcl::PointCloud<T>::Ptr> cluster_clouds,
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr PerceptionCore::colorizeClusters(
+std::vector<typename pcl::PointCloud<T>::Ptr> cluster_clouds,
 std::vector<cv::Vec3b> colors) {
     // colorize the clusters
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
