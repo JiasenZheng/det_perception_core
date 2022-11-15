@@ -82,12 +82,12 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
 
     // remove noise in the mask
     auto foreground_mask = denoiseMask(m_foreground_cloud_mask, 11); 
-    cv_bridge::CvImage foreground_mask_msg2;
-    foreground_mask_msg2.header.stamp = msg->header.stamp;
-    foreground_mask_msg2.header.frame_id = msg->header.frame_id;
-    foreground_mask_msg2.encoding = sensor_msgs::image_encodings::MONO8;
-    foreground_mask_msg2.image = foreground_mask;
-    m_processed_depth_image_pub.publish(foreground_mask_msg2.toImageMsg());
+    // cv_bridge::CvImage foreground_mask_msg2;
+    // foreground_mask_msg2.header.stamp = msg->header.stamp;
+    // foreground_mask_msg2.header.frame_id = msg->header.frame_id;
+    // foreground_mask_msg2.encoding = sensor_msgs::image_encodings::MONO8;
+    // foreground_mask_msg2.image = foreground_mask;
+    // m_processed_depth_image_pub.publish(foreground_mask_msg2.toImageMsg());
 
     // mask the ordered cloud
     auto ordered_masked_cloud = maskOrderedCloud<pcl::PointXYZRGB>(ordered_filtered_cloud, foreground_mask);
@@ -98,19 +98,36 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
     m_processed_cloud_pub.publish(masked_cloud_msg);
 
     // connected component analysis
-    imageCluster(foreground_mask, m_image_labels, m_num_labels);
+    imageCluster(foreground_mask, m_image_labels, m_num_labels, m_bboxes);
+    // draw bounding boxes to the image
+    auto image_with_bboxes = drawBboxes(foreground_mask, m_bboxes);
+    cv_bridge::CvImage image_with_bboxes_msg;
+    image_with_bboxes_msg.header.stamp = msg->header.stamp;
+    image_with_bboxes_msg.header.frame_id = msg->header.frame_id;
+    image_with_bboxes_msg.encoding = sensor_msgs::image_encodings::BGR8;
+    image_with_bboxes_msg.image = image_with_bboxes;
+    m_processed_depth_image_pub.publish(image_with_bboxes_msg.toImageMsg());
 
-    // get cluster clouds
-    auto cluster_clouds = getClusterClouds<pcl::PointXYZRGB>(ordered_masked_cloud, m_image_labels, m_num_labels);
 
-    // colorize the cluster clouds
-    auto colored_clustered_cloud = colorizeClusters<pcl::PointXYZ>(cluster_clouds,
-    m_colors);
-    sensor_msgs::PointCloud2 colored_clustered_cloud_msg;
-    pcl::toROSMsg(*colored_clustered_cloud, colored_clustered_cloud_msg);
-    colored_clustered_cloud_msg.header.frame_id = msg->header.frame_id;
-    colored_clustered_cloud_msg.header.stamp = msg->header.stamp;
-    m_cluster_cloud_pub.publish(colored_clustered_cloud_msg);
+    // // get cluster clouds
+    // auto start = std::chrono::high_resolution_clock::now();
+    // auto cluster_clouds = getClusterClouds<pcl::PointXYZRGB>(ordered_masked_cloud, m_image_labels, m_num_labels);
+    // auto end = std::chrono::high_resolution_clock::now();
+    // auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    // // ROS_INFO_STREAM("Time taken by getClusterClouds: " << duration.count()/1000000.0 << " seconds");
+
+    // // colorize the cluster clouds
+    // start = std::chrono::high_resolution_clock::now();
+    // auto colored_clustered_cloud = colorizeClusters<pcl::PointXYZ>(cluster_clouds,
+    // m_colors);
+    // end = std::chrono::high_resolution_clock::now();
+    // duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    // // ROS_INFO_STREAM("Time taken by colorizeClusters: " << duration.count()/1000000.0 << " seconds");
+    // sensor_msgs::PointCloud2 colored_clustered_cloud_msg;
+    // pcl::toROSMsg(*colored_clustered_cloud, colored_clustered_cloud_msg);
+    // colored_clustered_cloud_msg.header.frame_id = msg->header.frame_id;
+    // colored_clustered_cloud_msg.header.stamp = msg->header.stamp;
+    // m_cluster_cloud_pub.publish(colored_clustered_cloud_msg);
 
     // // get cluster oriented bounding boxes
     // // test with the first cluster
@@ -569,9 +586,9 @@ void PerceptionCore::imageCluster(const cv::Mat& mask, cv::Mat& labels, int& num
             min_pixels = pixels;
         }
     }
-    // log the number of pixels in the largest component and the smallest component
-    std::cout << "max pixels: " << max_pixels << std::endl;
-    std::cout << "min pixels: " << min_pixels << std::endl;
+    // // log the number of pixels in the largest component and the smallest component
+    // std::cout << "max pixels: " << max_pixels << std::endl;
+    // std::cout << "min pixels: " << min_pixels << std::endl;
 }
 
 cv::Mat PerceptionCore::detectContour(const cv::Mat& depth_image) {
@@ -675,35 +692,47 @@ cv::Mat PerceptionCore::denoiseMask(const cv::Mat& mask, const int& kernel_size)
     return denoised_mask;
 }
 
-void PerceptionCore::imageCluster(const cv::Mat& mask, cv::Mat& labels, int& num_labels) {
+void PerceptionCore::imageCluster(const cv::Mat& mask, cv::Mat& labels, int& num_labels, 
+std::vector<cv::Rect>& bboxes) {
     // find the connected components
     cv::Mat mask_8u;
     mask.convertTo(mask_8u, CV_8U);
     num_labels = cv::connectedComponents(mask_8u, labels);
-    // remove the background
-    for (int i = 0; i < labels.rows; i++) {
-    for (int j = 0; j < labels.cols; j++) {
-        if (labels.at<int>(i, j) == 0) {
-            labels.at<int>(i, j) = -1;
+    num_labels--;
+    // compute bounding boxes for each component
+    bboxes.resize(num_labels);
+    for (int i = 0; i < num_labels; i++) {
+        bboxes[i] = cv::Rect(0, 0, 0, 0);
+    }
+    for (int i = 0; i < mask.rows; i++) {
+        for (int j = 0; j < mask.cols; j++) {
+            if (labels.at<int>(i, j) == 0) {
+                continue;
+            }
+            int label = labels.at<int>(i, j) - 1;
+            if (bboxes[label].x == 0) {
+                bboxes[label].x = j;
+            }
+            else if (bboxes[label].x > j) {
+                bboxes[label].width += bboxes[label].x - j;
+                bboxes[label].x = j;
+            }
+            if (bboxes[label].y == 0) {
+                bboxes[label].y = i;
+            }
+            else if (bboxes[label].y > i) {
+                bboxes[label].height += bboxes[label].y - i;
+                bboxes[label].y = i;
+            }
+            if (bboxes[label].x + bboxes[label].width < j) {
+                bboxes[label].width = j - bboxes[label].x;
+            }
+            if (bboxes[label].y + bboxes[label].height < i) {
+                bboxes[label].height = i - bboxes[label].y;
+            }
         }
     }
-    }
-    // relabel the components
-    std::vector<int> label_map(num_labels, -1);
-    int label_count = 0;
-    for (int i = 0; i < labels.rows; i++) {
-    for (int j = 0; j < labels.cols; j++) {
-        if (labels.at<int>(i, j) == -1) {
-            continue;
-        }
-        if (label_map[labels.at<int>(i, j)] == -1) {
-            label_map[labels.at<int>(i, j)] = label_count;
-            label_count++;
-        }
-        labels.at<int>(i, j) = label_map[labels.at<int>(i, j)];
-    }
-    }
-    num_labels = label_count;
+
 }
 
 // template <typename T>
@@ -760,18 +789,18 @@ const cv::Mat& labels, const int& num_labels) {
     for (size_t j = 0; j < ordered_cloud->cloud->width; j++) {
         int x = ordered_cloud->start_x + j;
         int y = ordered_cloud->start_y + i;
-        if (labels.at<int>(y, x) == -1) {
+        if (labels.at<int>(y, x) == 0) {
             continue;
         }
         // check if the point is valid
         if (std::isnan(ordered_cloud->cloud->points[i * ordered_cloud->cloud->width + j].x)) {
             continue;
         }
-        cluster_clouds[labels.at<int>(y, x)]->cloud->points[i * ordered_cloud->cloud->width + j].x =
+        cluster_clouds[labels.at<int>(y, x) - 1]->cloud->points[i * ordered_cloud->cloud->width + j].x =
         ordered_cloud->cloud->points[i * ordered_cloud->cloud->width + j].x;
-        cluster_clouds[labels.at<int>(y, x)]->cloud->points[i * ordered_cloud->cloud->width + j].y =
+        cluster_clouds[labels.at<int>(y, x) - 1]->cloud->points[i * ordered_cloud->cloud->width + j].y =
         ordered_cloud->cloud->points[i * ordered_cloud->cloud->width + j].y;
-        cluster_clouds[labels.at<int>(y, x)]->cloud->points[i * ordered_cloud->cloud->width + j].z =
+        cluster_clouds[labels.at<int>(y, x) - 1]->cloud->points[i * ordered_cloud->cloud->width + j].z =
         ordered_cloud->cloud->points[i * ordered_cloud->cloud->width + j].z;
     }
     }
@@ -833,6 +862,17 @@ std::vector<cv::Vec3b> colors) {
     colored_cloud->height = 1;
     colored_cloud->is_dense = true;
     return colored_cloud;
+}
+
+cv::Mat PerceptionCore::drawBboxes(const cv::Mat& image, const std::vector<cv::Rect>& bboxes) {
+    // convert the image to RGB
+    cv::Mat image_rgb;
+    cv::cvtColor(image, image_rgb, cv::COLOR_GRAY2RGB);
+    // draw the bounding boxes
+    for (size_t i = 0; i < bboxes.size(); i++) {
+        cv::rectangle(image_rgb, bboxes[i], cv::Scalar(0, 255, 0), 2);
+    }
+    return image_rgb;
 }
 
 int main(int argc, char** argv)
