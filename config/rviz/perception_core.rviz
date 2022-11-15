@@ -171,21 +171,21 @@ Visualization Manager:
       Frames:
         All Enabled: false
         camera_confidence_frame:
-          Value: true
+          Value: false
         camera_confidence_optical_frame:
-          Value: true
+          Value: false
         cluster_0:
           Value: true
         l515_aligned_depth_to_color_frame:
-          Value: true
+          Value: false
         l515_color_frame:
-          Value: true
+          Value: false
         l515_color_optical_frame:
-          Value: true
+          Value: false
         l515_depth_frame:
-          Value: true
+          Value: false
         l515_depth_optical_frame:
-          Value: true
+          Value: false
         l515_link:
           Value: true
       Marker Alpha: 1
@@ -238,7 +238,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 2.8862791061401367
+      Distance: 2.130851984024048
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -254,9 +254,9 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.07020276039838791
+      Pitch: -0.1547972857952118
       Target Frame: <Fixed Frame>
-      Yaw: 2.898667812347412
+      Yaw: 3.138671636581421
     Saved: ~
 Window Geometry:
   Displays:
