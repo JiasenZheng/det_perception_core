@@ -107,6 +107,8 @@ public:
     std::vector<OrderedCloud<pcl::PointXYZ>::Ptr> getClusterClouds(
     const typename OrderedCloud<T>::Ptr ordered_cloud, const cv::Mat& labels, const int& num_labels,
     const std::vector<cv::Rect>& bboxes);
+    template <typename T>
+    typename pcl::PointCloud<T>::Ptr orderedToUnorderedCloud(const typename pcl::PointCloud<T>::Ptr ordered_cloud);
 
 private:
     int m_image_count;

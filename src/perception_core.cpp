@@ -111,61 +111,61 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
 
     // get cluster clouds
     auto start = std::chrono::high_resolution_clock::now();
-    auto cluster_clouds = getClusterClouds<pcl::PointXYZRGB>(ordered_masked_cloud, m_image_labels, m_num_labels, m_bboxes);
+    auto cluster_clouds = getClusterClouds<pcl::PointXYZRGB>(ordered_masked_cloud, m_image_labels, m_num_labels, 
+    m_bboxes);
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     // ROS_INFO_STREAM("Time taken by getClusterClouds: " << duration.count()/1000000.0 << " seconds");
 
-    // // colorize the cluster clouds
-    // start = std::chrono::high_resolution_clock::now();
-    // auto colored_clustered_cloud = colorizeClusters<pcl::PointXYZ>(cluster_clouds,
-    // m_colors);
-    // end = std::chrono::high_resolution_clock::now();
-    // duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    // // ROS_INFO_STREAM("Time taken by colorizeClusters: " << duration.count()/1000000.0 << " seconds");
-    // sensor_msgs::PointCloud2 colored_clustered_cloud_msg;
-    // pcl::toROSMsg(*colored_clustered_cloud, colored_clustered_cloud_msg);
-    // colored_clustered_cloud_msg.header.frame_id = msg->header.frame_id;
-    // colored_clustered_cloud_msg.header.stamp = msg->header.stamp;
-    // m_cluster_cloud_pub.publish(colored_clustered_cloud_msg);
+    // colorize the cluster clouds
+    start = std::chrono::high_resolution_clock::now();
+    auto colored_clustered_cloud = colorizeClusters<pcl::PointXYZ>(cluster_clouds,
+    m_colors);
+    end = std::chrono::high_resolution_clock::now();
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    // ROS_INFO_STREAM("Time taken by colorizeClusters: " << duration.count()/1000000.0 << " seconds");
+    sensor_msgs::PointCloud2 colored_clustered_cloud_msg;
+    pcl::toROSMsg(*colored_clustered_cloud, colored_clustered_cloud_msg);
+    colored_clustered_cloud_msg.header.frame_id = msg->header.frame_id;
+    colored_clustered_cloud_msg.header.stamp = msg->header.stamp;
+    m_cluster_cloud_pub.publish(colored_clustered_cloud_msg);
 
     // get cluster oriented bounding boxes
     // test with the first cluster
-    start = std::chrono::high_resolution_clock::now();
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cluster_cloud = cluster_clouds[0]->cloud;
+    // start = std::chrono::high_resolution_clock::now();
+    auto cluster_cloud = orderedToUnorderedCloud<pcl::PointXYZ>(cluster_clouds[0]->cloud);
     pcl::MomentOfInertiaEstimation<pcl::PointXYZ> feature_extractor;
     feature_extractor.setInputCloud(cluster_cloud);
-    // int row_start = cluster_clouds[0]->start_y;
-    // int col_start = cluster_clouds[0]->start_x;
-    int nb_rows = cluster_clouds[0]->cloud->height;
-    int nb_cols = cluster_clouds[0]->cloud->width;
-    // log the totoal number of points in the cluster
-    // ROS_INFO_STREAM("Total number of points in the cluster: " << cluster_cloud->points.size());
-    // log nb_rows and nb_cols
-    // ROS_INFO_STREAM("nb_rows: " << nb_rows << " nb_cols: " << nb_cols);
-    feature_extractor.setIndices(0, 0, nb_rows, nb_cols);
+    // int nb_rows = cluster_clouds[0]->cloud->height;
+    // int nb_cols = cluster_clouds[0]->cloud->width;
+    // feature_extractor.setIndices(0, 0, nb_rows, nb_cols);
     feature_extractor.compute();
     pcl::PointXYZ min_point_OBB;
     pcl::PointXYZ max_point_OBB;
     pcl::PointXYZ position_OBB;
     Eigen::Matrix3f rotational_matrix_OBB;
     feature_extractor.getOBB(min_point_OBB, max_point_OBB, position_OBB, rotational_matrix_OBB);
-    end = std::chrono::high_resolution_clock::now();
-    duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    ROS_INFO_STREAM("Time taken by getOBB: " << duration.count()/1000000.0 << " seconds");
+    // end = std::chrono::high_resolution_clock::now();
+    // duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    // ROS_INFO_STREAM("Time taken by getOBB: " << duration.count()/1000000.0 << " seconds");
 
-    // create a tf transform
-    tf::Transform transform;
-    transform.setOrigin(tf::Vector3(position_OBB.x, position_OBB.y, position_OBB.z));
-    tf::Matrix3x3 tf3d;
-    tf3d.setValue(rotational_matrix_OBB(0, 0), rotational_matrix_OBB(0, 1), rotational_matrix_OBB(0, 2),
-    rotational_matrix_OBB(1, 0), rotational_matrix_OBB(1, 1), rotational_matrix_OBB(1, 2),
-    rotational_matrix_OBB(2, 0), rotational_matrix_OBB(2, 1), rotational_matrix_OBB(2, 2));
-    // convert to quaternion
-    tf::Quaternion q;
-    tf3d.getRotation(q);
-    transform.setRotation(q);
-    m_br.sendTransform(tf::StampedTransform(transform, msg->header.stamp, msg->header.frame_id, "cluster_0"));
+    // log the position
+    ROS_INFO_STREAM("position_OBB: " << position_OBB.x << ", " << position_OBB.y << ", " << position_OBB.z);
+    // log the rotational matrix
+    ROS_INFO_STREAM("rotational_matrix_OBB: " << rotational_matrix_OBB);
+
+    // // create a tf transform
+    // tf::Transform transform;
+    // transform.setOrigin(tf::Vector3(position_OBB.x, position_OBB.y, position_OBB.z));
+    // tf::Matrix3x3 tf3d;
+    // tf3d.setValue(rotational_matrix_OBB(0, 0), rotational_matrix_OBB(0, 1), rotational_matrix_OBB(0, 2),
+    // rotational_matrix_OBB(1, 0), rotational_matrix_OBB(1, 1), rotational_matrix_OBB(1, 2),
+    // rotational_matrix_OBB(2, 0), rotational_matrix_OBB(2, 1), rotational_matrix_OBB(2, 2));
+    // // convert to quaternion
+    // tf::Quaternion q;
+    // tf3d.getRotation(q);
+    // transform.setRotation(q);
+    // m_br.sendTransform(tf::StampedTransform(transform, msg->header.stamp, msg->header.frame_id, "cluster_0"));
 }
 
 void PerceptionCore::imageCallback(const sensor_msgs::ImageConstPtr& msg)
@@ -897,6 +897,22 @@ cv::Mat PerceptionCore::drawBboxes(const cv::Mat& image, const std::vector<cv::R
         cv::rectangle(image_rgb, bboxes[i], cv::Scalar(0, 255, 0), 2);
     }
     return image_rgb;
+}
+
+template <typename T>
+typename pcl::PointCloud<T>::Ptr PerceptionCore::orderedToUnorderedCloud(const typename pcl::PointCloud<T>::Ptr ordered_cloud) {
+    // create a new unordered cloud
+    typename pcl::PointCloud<T>::Ptr unordered_cloud(new pcl::PointCloud<T>);
+    int num_points = ordered_cloud->points.size();
+    unordered_cloud->width = num_points;
+    unordered_cloud->height = 1;
+    unordered_cloud->is_dense = true;
+    unordered_cloud->points.resize(num_points);
+    // fill the unordered cloud
+    for (int i = 0; i < num_points; i++) {
+        unordered_cloud->points[i] = ordered_cloud->points[i];
+    }
+    return unordered_cloud;
 }
 
 int main(int argc, char** argv)
