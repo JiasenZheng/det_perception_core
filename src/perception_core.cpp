@@ -107,28 +107,28 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     ROS_INFO_STREAM("Time taken to get cluster clouds: " << duration.count()/1000000.0 << " seconds");
 
-    // colorize the cluster clouds
-    start = std::chrono::high_resolution_clock::now();
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_clustered_cloud = colorizeClusters<pcl::PointXYZRGB>(cluster_clouds,
-    m_colors);
-    end = std::chrono::high_resolution_clock::now();
-    duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    ROS_INFO_STREAM("Time taken to colorize clusters: " << duration.count()/1000000.0 << " seconds");
-    sensor_msgs::PointCloud2 colored_clustered_cloud_msg;
-    pcl::toROSMsg(*colored_clustered_cloud, colored_clustered_cloud_msg);
-    colored_clustered_cloud_msg.header.frame_id = msg->header.frame_id;
-    colored_clustered_cloud_msg.header.stamp = msg->header.stamp;
-    m_cluster_cloud_pub.publish(colored_clustered_cloud_msg);
+    // // colorize the cluster clouds
+    // start = std::chrono::high_resolution_clock::now();
+    // pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_clustered_cloud = colorizeClusters<pcl::PointXYZRGB>(cluster_clouds,
+    // m_colors);
+    // end = std::chrono::high_resolution_clock::now();
+    // duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    // ROS_INFO_STREAM("Time taken to colorize clusters: " << duration.count()/1000000.0 << " seconds");
+    // sensor_msgs::PointCloud2 colored_clustered_cloud_msg;
+    // pcl::toROSMsg(*colored_clustered_cloud, colored_clustered_cloud_msg);
+    // colored_clustered_cloud_msg.header.frame_id = msg->header.frame_id;
+    // colored_clustered_cloud_msg.header.stamp = msg->header.stamp;
+    // m_cluster_cloud_pub.publish(colored_clustered_cloud_msg);
 
     // get cluster oriented bounding boxes
     // test with the first cluster
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cluster_cloud = cluster_clouds[0];
-    pcl::MomentOfInertiaEstimation<pcl::PointXYZRGB> feature_extractor;
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cluster_cloud = cluster_clouds[0]->cloud;
+    pcl::MomentOfInertiaEstimation<pcl::PointXYZ> feature_extractor;
     feature_extractor.setInputCloud(cluster_cloud);
     feature_extractor.compute();
-    pcl::PointXYZRGB min_point_OBB;
-    pcl::PointXYZRGB max_point_OBB;
-    pcl::PointXYZRGB position_OBB;
+    pcl::PointXYZ min_point_OBB;
+    pcl::PointXYZ max_point_OBB;
+    pcl::PointXYZ position_OBB;
     Eigen::Matrix3f rotational_matrix_OBB;
     feature_extractor.getOBB(min_point_OBB, max_point_OBB, position_OBB, rotational_matrix_OBB);
 
