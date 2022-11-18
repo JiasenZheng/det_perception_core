@@ -97,8 +97,12 @@ public:
     std::vector<typename pcl::PointCloud<T>::Ptr> getClusterClouds(const typename OrderedCloud<T>::Ptr ordered_cloud,
     const cv::Mat& labels, const int& num_labels);
     template <typename T>
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr colorizeClusters(std::vector<typename pcl::PointCloud<T>::Ptr> cluster_clouds,
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr colorizeClusters(
+    std::vector<typename pcl::PointCloud<T>::Ptr> cluster_clouds,
     std::vector<cv::Vec3b> colors);
+    std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> getClusterClouds(
+    const typename OrderedCloud<pcl::PointXYZRGB>::Ptr ordered_cloud,
+    const cv::Mat& labels, const int& num_labels);
 
 private:
     int m_image_count;

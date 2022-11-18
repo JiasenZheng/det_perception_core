@@ -101,10 +101,10 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
     imageCluster(foreground_mask, m_image_labels, m_num_labels);
 
     // get cluster clouds
-    auto cluster_clouds = getClusterClouds<pcl::PointXYZRGB>(ordered_masked_cloud, m_image_labels, m_num_labels);
+    auto cluster_clouds = getClusterClouds(ordered_masked_cloud, m_image_labels, m_num_labels);
 
     // colorize the cluster clouds
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_clustered_cloud = colorizeClusters<pcl::PointXYZRGB>(cluster_clouds,
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_clustered_cloud = colorizeClusters<pcl::PointXYZ>(cluster_clouds,
     m_colors);
     sensor_msgs::PointCloud2 colored_clustered_cloud_msg;
     pcl::toROSMsg(*colored_clustered_cloud, colored_clustered_cloud_msg);
@@ -114,13 +114,13 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
 
     // get cluster oriented bounding boxes
     // test with the first cluster
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cluster_cloud = cluster_clouds[0];
-    pcl::MomentOfInertiaEstimation<pcl::PointXYZRGB> feature_extractor;
+    auto cluster_cloud = cluster_clouds[0];
+    pcl::MomentOfInertiaEstimation<pcl::PointXYZ> feature_extractor;
     feature_extractor.setInputCloud(cluster_cloud);
     feature_extractor.compute();
-    pcl::PointXYZRGB min_point_OBB;
-    pcl::PointXYZRGB max_point_OBB;
-    pcl::PointXYZRGB position_OBB;
+    pcl::PointXYZ min_point_OBB;
+    pcl::PointXYZ max_point_OBB;
+    pcl::PointXYZ position_OBB;
     Eigen::Matrix3f rotational_matrix_OBB;
     feature_extractor.getOBB(min_point_OBB, max_point_OBB, position_OBB, rotational_matrix_OBB);
 
@@ -680,30 +680,7 @@ void PerceptionCore::imageCluster(const cv::Mat& mask, cv::Mat& labels, int& num
     cv::Mat mask_8u;
     mask.convertTo(mask_8u, CV_8U);
     num_labels = cv::connectedComponents(mask_8u, labels);
-    // remove the background
-    for (int i = 0; i < labels.rows; i++) {
-    for (int j = 0; j < labels.cols; j++) {
-        if (labels.at<int>(i, j) == 0) {
-            labels.at<int>(i, j) = -1;
-        }
-    }
-    }
-    // relabel the components
-    std::vector<int> label_map(num_labels, -1);
-    int label_count = 0;
-    for (int i = 0; i < labels.rows; i++) {
-    for (int j = 0; j < labels.cols; j++) {
-        if (labels.at<int>(i, j) == -1) {
-            continue;
-        }
-        if (label_map[labels.at<int>(i, j)] == -1) {
-            label_map[labels.at<int>(i, j)] = label_count;
-            label_count++;
-        }
-        labels.at<int>(i, j) = label_map[labels.at<int>(i, j)];
-    }
-    }
-    num_labels = label_count;
+    num_labels--;
 }
 
 template <typename T>
@@ -719,15 +696,49 @@ const cv::Mat& labels, const int& num_labels) {
     for (size_t j = 0; j < ordered_cloud->cloud->width; j++) {
         int x = ordered_cloud->start_x + j;
         int y = ordered_cloud->start_y + i;
-        if (labels.at<int>(y, x) == -1) {
+        if (labels.at<int>(y, x) == 0) {
             continue;
         }
         // check if the point is valid
         if (std::isnan(ordered_cloud->cloud->points[i * ordered_cloud->cloud->width + j].x)) {
             continue;
         }
-        cluster_clouds[labels.at<int>(y, x)]->points.push_back(ordered_cloud->cloud->points[i * 
+        cluster_clouds[labels.at<int>(y, x) - 1]->points.push_back(ordered_cloud->cloud->points[i * 
         ordered_cloud->cloud->width + j]);
+    }
+    }
+    for (int i = 0; i < num_labels; i++) {
+        cluster_clouds[i]->width = cluster_clouds[i]->points.size();
+        cluster_clouds[i]->height = 1;
+        cluster_clouds[i]->is_dense = true;
+    }
+    return cluster_clouds;
+}
+
+std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> PerceptionCore::getClusterClouds(
+const typename OrderedCloud<pcl::PointXYZRGB>::Ptr ordered_cloud,
+const cv::Mat& labels, const int& num_labels) {
+    // get the point clouds of each cluster
+    std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> cluster_clouds(num_labels);
+    for (int i = 0; i < num_labels; i++) {
+        cluster_clouds[i] = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>);
+    }
+    for (size_t i = 0; i < ordered_cloud->cloud->height; i++) {
+    for (size_t j = 0; j < ordered_cloud->cloud->width; j++) {
+        int x = ordered_cloud->start_x + j;
+        int y = ordered_cloud->start_y + i;
+        if (labels.at<int>(y, x) == 0) {
+            continue;
+        }
+        // check if the point is valid
+        if (std::isnan(ordered_cloud->cloud->points[i * ordered_cloud->cloud->width + j].x)) {
+            continue;
+        }
+        pcl::PointXYZ point;
+        point.x = ordered_cloud->cloud->points[i * ordered_cloud->cloud->width + j].x;
+        point.y = ordered_cloud->cloud->points[i * ordered_cloud->cloud->width + j].y;
+        point.z = ordered_cloud->cloud->points[i * ordered_cloud->cloud->width + j].z;
+        cluster_clouds[labels.at<int>(y, x) - 1]->points.push_back(point);
     }
     }
     for (int i = 0; i < num_labels; i++) {
@@ -762,6 +773,7 @@ std::vector<cv::Vec3b> colors) {
     colored_cloud->is_dense = true;
     return colored_cloud;
 }
+
 
 int main(int argc, char** argv)
 {
