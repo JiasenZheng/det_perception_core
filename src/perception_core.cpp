@@ -114,28 +114,21 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
 
     // get cluster oriented bounding boxes
     // test with the first cluster
-    auto cluster_cloud = cluster_clouds[0];
-    pcl::MomentOfInertiaEstimation<pcl::PointXYZ> feature_extractor;
-    feature_extractor.setInputCloud(cluster_cloud);
-    feature_extractor.compute();
-    pcl::PointXYZ min_point_OBB;
-    pcl::PointXYZ max_point_OBB;
-    pcl::PointXYZ position_OBB;
-    Eigen::Matrix3f rotational_matrix_OBB;
-    feature_extractor.getOBB(min_point_OBB, max_point_OBB, position_OBB, rotational_matrix_OBB);
+    for (size_t i = 0; i < cluster_clouds.size(); i++)
+    {
+        auto cluster_cloud = cluster_clouds[i];
+        Eigen::Vector3f position;
+        Eigen::Quaternionf orientation;
+        Eigen::Vector3f dimensions;
+        computeOBB<pcl::PointXYZ>(cluster_cloud, position, orientation, dimensions);
+        // publish a tf
+        tf::Transform transform;
+        transform.setOrigin(tf::Vector3(position[0], position[1], position[2]));
+        tf::Quaternion q(orientation.x(), orientation.y(), orientation.z(), orientation.w());
+        transform.setRotation(q);
+        m_br.sendTransform(tf::StampedTransform(transform, msg->header.stamp, msg->header.frame_id, "cluster_" + std::to_string(i)));
+    }
 
-    // create a tf transform
-    tf::Transform transform;
-    transform.setOrigin(tf::Vector3(position_OBB.x, position_OBB.y, position_OBB.z));
-    tf::Matrix3x3 tf3d;
-    tf3d.setValue(rotational_matrix_OBB(0, 0), rotational_matrix_OBB(0, 1), rotational_matrix_OBB(0, 2),
-    rotational_matrix_OBB(1, 0), rotational_matrix_OBB(1, 1), rotational_matrix_OBB(1, 2),
-    rotational_matrix_OBB(2, 0), rotational_matrix_OBB(2, 1), rotational_matrix_OBB(2, 2));
-    // convert to quaternion
-    tf::Quaternion q;
-    tf3d.getRotation(q);
-    transform.setRotation(q);
-    m_br.sendTransform(tf::StampedTransform(transform, msg->header.stamp, msg->header.frame_id, "cluster_0"));
 }
 
 void PerceptionCore::imageCallback(const sensor_msgs::ImageConstPtr& msg)
@@ -772,6 +765,23 @@ std::vector<cv::Vec3b> colors) {
     colored_cloud->height = 1;
     colored_cloud->is_dense = true;
     return colored_cloud;
+}
+
+template <typename T>
+void PerceptionCore::computeOBB(const typename pcl::PointCloud<T>::Ptr cloud, Eigen::Vector3f& position,
+Eigen::Quaternionf& orientation, Eigen::Vector3f& dimensions) {
+    // compute the oriented bounding box
+    pcl::MomentOfInertiaEstimation<T> feature_extractor;
+    feature_extractor.setInputCloud(cloud);
+    feature_extractor.compute();
+    T min_point_OBB;
+    T max_point_OBB;
+    T position_OBB;
+    Eigen::Matrix3f rotational_matrix_OBB;
+    feature_extractor.getOBB(min_point_OBB, max_point_OBB, position_OBB, rotational_matrix_OBB);
+    position = position_OBB.getVector3fMap();
+    orientation = Eigen::Quaternionf(rotational_matrix_OBB);
+    dimensions = (max_point_OBB.getVector3fMap() - min_point_OBB.getVector3fMap()).cwiseAbs();
 }
 
 
