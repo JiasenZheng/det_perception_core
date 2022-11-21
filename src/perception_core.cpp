@@ -100,8 +100,11 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
     // connected component analysis
     imageCluster(foreground_mask, m_image_labels, m_num_labels);
 
+    // downsample foreground mask
+    auto downsampled_mask = downsampleMask(foreground_mask, 20);
+
     // get cluster clouds
-    auto cluster_clouds = getClusterClouds(ordered_masked_cloud, m_image_labels, m_num_labels);
+    auto cluster_clouds = getClusterClouds(ordered_masked_cloud, m_image_labels, m_num_labels, downsampled_mask);
 
     // colorize the cluster clouds
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_clustered_cloud = colorizeClusters<pcl::PointXYZ>(cluster_clouds,
@@ -113,7 +116,6 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
     m_cluster_cloud_pub.publish(colored_clustered_cloud_msg);
 
     // get cluster oriented bounding boxes
-    // test with the first cluster
     for (size_t i = 0; i < cluster_clouds.size(); i++)
     {
         auto cluster_cloud = cluster_clouds[i];
@@ -710,7 +712,7 @@ const cv::Mat& labels, const int& num_labels) {
 
 std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> PerceptionCore::getClusterClouds(
 const typename OrderedCloud<pcl::PointXYZRGB>::Ptr ordered_cloud,
-const cv::Mat& labels, const int& num_labels) {
+const cv::Mat& labels, const int& num_labels, const cv::Mat& downsampled_mask) {
     // get the point clouds of each cluster
     std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> cluster_clouds(num_labels);
     for (int i = 0; i < num_labels; i++) {
@@ -721,6 +723,9 @@ const cv::Mat& labels, const int& num_labels) {
         int x = ordered_cloud->start_x + j;
         int y = ordered_cloud->start_y + i;
         if (labels.at<int>(y, x) == 0) {
+            continue;
+        }
+        if (downsampled_mask.at<uchar>(y, x) == 0) {
             continue;
         }
         // check if the point is valid
@@ -782,6 +787,23 @@ Eigen::Quaternionf& orientation, Eigen::Vector3f& dimensions) {
     position = position_OBB.getVector3fMap();
     orientation = Eigen::Quaternionf(rotational_matrix_OBB);
     dimensions = (max_point_OBB.getVector3fMap() - min_point_OBB.getVector3fMap()).cwiseAbs();
+}
+
+cv::Mat PerceptionCore::downsampleMask(const cv::Mat& mask, const int& factor) {
+    // copy mask
+    cv::Mat downsampled_mask = mask.clone();
+    // randomly turn off pixels
+    for (int i = 0; i < mask.rows; i++) {
+    for (int j = 0; j < mask.cols; j++) {
+        if (mask.at<uchar>(i, j) == 0) {
+            continue;
+        }
+        if (rand() % factor != 0) {
+            downsampled_mask.at<uchar>(i, j) = 0;
+        }
+    }
+    }
+    return downsampled_mask;
 }
 
 

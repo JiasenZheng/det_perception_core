@@ -5,8 +5,9 @@ This script is used to infer image in real time.
 """
 
 import os, cv2
+import numpy as np
 import rospy 
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, CompressedImage
 from cv_bridge import CvBridge
 from det_img_seg.seg_inference import SegInference
 
@@ -14,19 +15,44 @@ class InferRealTime(SegInference):
     def __init__(self, model, weights, dataset_dir, image_dir, thing_classes):
         super(InferRealTime, self).__init__(model, weights, dataset_dir, image_dir, thing_classes)
         self.bridge = CvBridge()
-        ns = rospy.get_namespace()
-        self.image_sub = rospy.Subscriber( ns + "/" + ns + "/color/image_raw", Image, self.callback)
-        self.image_pub = rospy.Publisher( ns + "/" + ns + "/color/image_seg", Image, queue_size=1)
+        self.sub_topic = "/l515/color/image_raw"
+        # self.sub_topic = "/l515/color/image_raw/compressed"
+        topic_end = self.sub_topic.split('/')[-1]
+        if topic_end == 'compressed':
+            self.is_compressed = True
+            image_type = CompressedImage
+        else:
+            self.is_compressed = False
+            image_type = Image
+        self.image_sub = rospy.Subscriber( self.sub_topic, image_type, self.callback)
+        self.image_pub = rospy.Publisher( "/l515/color/image_seg", Image, queue_size=1)
     
     def callback(self, data):
-        # time the following code
-        start = rospy.get_time()
-        cv_image = self.bridge.imgmsg_to_cv2(data)
-        cv_image = self.infer_once(cv_image, show_img = False)
-        image_msg = self.bridge.cv2_to_imgmsg(cv_image, "bgr8")
-        end = rospy.get_time()
-        # rospy.loginfo("Infer time: %f", end - start)
-        self.image_pub.publish(image_msg)
+        # check if the image is compressed
+        if self.is_compressed:
+            # convert the image to cv2 image
+            cv_image = self.bridge.compressed_imgmsg_to_cv2(data, "bgr8")
+        else:
+            cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
+        
+        output = self.predictor(cv_image)
+        masks = output["instances"].pred_masks
+        masks = masks.cpu().numpy()
+        # rospy.loginfo("masks type: {}".format(type(masks)))
+        num_masks = masks.shape[0]
+        if num_masks > 0:
+            mask = masks[0]
+            mask = mask.astype(np.uint8)
+            mask = mask * 255
+        
+        # convert the mask to cv2 image
+        cv_mask = self.bridge.cv2_to_imgmsg(mask, "mono8")
+        # publish the mask
+        self.image_pub.publish(cv_mask)
+
+
+
+
 
 if __name__ == '__main__':
     rospy.init_node('infer_real_time', anonymous=True)

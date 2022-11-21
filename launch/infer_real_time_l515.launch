@@ -1,0 +1,16 @@
+<launch>
+    <!-- bringup l515 -->
+    <include file="$(find det_perception_core)/launch/rs_lidar_ordered.launch">
+        <arg name="use_rviz" value="false"/>
+    </include>
+
+    <!-- infer node -->
+    <node name="infer_real_time" pkg="det_perception_core" type="infer_real_time" output="screen"/>
+
+
+    <!-- rviz -->
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find det_perception_core)/config/rviz/infer_real_time.rviz"/>
+    
+</launch>
+
+
