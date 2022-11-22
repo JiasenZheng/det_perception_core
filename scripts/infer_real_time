@@ -5,6 +5,7 @@ This script is used to infer image in real time.
 """
 
 import os, cv2
+from sys import getsizeof
 import numpy as np
 import rospy 
 from sensor_msgs.msg import Image, CompressedImage
@@ -38,24 +39,37 @@ class InferRealTime(SegInference):
             self.cv_image = self.bridge.compressed_imgmsg_to_cv2(data, "bgr8")
         else:
             self.cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
-        
-        # output = self.predictor(cv_image)
-        # masks = output["instances"].pred_masks
-        # masks = masks.cpu().numpy()
-        # # rospy.loginfo("masks type: {}".format(type(masks)))
-        # num_masks = masks.shape[0]
-        # if num_masks > 0:
-        #     mask = masks[0]
-        #     mask = mask.astype(np.uint8)
-        #     mask = mask * 255
-        
-        # # convert the mask to cv2 image
-        # cv_mask = self.bridge.cv2_to_imgmsg(mask, "mono8")
-        # # publish the mask
-        # self.image_pub.publish(cv_mask)
+
 
     def infer_callback(self, req):
-        pass
+        start_x = req.start_x
+        start_y = req.start_y
+        width = req.width
+        height = req.height
+        # # check if the image is None
+        # if self.cv_image is None:
+        #     return InferenceResponse(False, "No image received")
+        # # check if the image is valid
+        # if start_x < 0 or start_y < 0 or width < 0 or height < 0:
+        #     return InferenceResponse(False, "Invalid image")
+        # # check if the image is out of range
+        # if start_x + width > self.cv_image.shape[1] or start_y + height > self.cv_image.shape[0]:
+        #     return InferenceResponse(False, "Invalid image")
+        # crop the image
+        crop_image = self.cv_image[start_y:start_y+height, start_x:start_x+width]
+        # inference
+        outputs = self.predictor(crop_image)
+        num_inferences = len(outputs["instances"])
+        masks = outputs["instances"].pred_masks
+        # convert to numpy array
+        masks = masks.cpu().numpy()
+        # flatten the masks
+        masks = masks.flatten()
+        # convert to bool list
+        masks = masks.tolist()
+        # create the response
+        response = InferenceResponse(num_inferences, masks)
+        return response
 
 
 

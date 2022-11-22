@@ -109,6 +109,7 @@ public:
     void computeOBB(const typename pcl::PointCloud<T>::Ptr cloud, Eigen::Vector3f& position,
     Eigen::Quaternionf& orientation, Eigen::Vector3f& dimensions);
     cv::Mat downsampleMask(const cv::Mat& mask, const int& factor);
+    std::vector<cv::Rect> expandBoundingBoxes(const std::vector<cv::Rect>& bboxes, const int& pixels);
 
 private:
     int m_image_count;
@@ -119,6 +120,7 @@ private:
     std::vector<cv::Vec3b> m_colors;
     std::vector<cv::Rect> m_bboxes;
     pcl::ModelCoefficients::Ptr m_plane_coefficients;
+    cv::Mat m_raw_image;
     cv::Mat m_background_image;
     cv::Mat m_foreground_image_mask;
     cv::Mat m_foreground_cloud_mask;

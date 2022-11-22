@@ -9,6 +9,7 @@
 PerceptionCore::PerceptionCore(ros::NodeHandle nh): m_nh(nh)
 {
     m_nh.param("margin_pixels", m_margin_pixels, 20);
+    m_raw_image = cv::Mat::zeros(480, 640, CV_8UC3);
     m_image_count = 100;
     // init list of colors
     m_colors.push_back(cv::Vec3b(255, 0, 0));
@@ -80,12 +81,12 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
 
     // remove noise in the mask
     auto foreground_mask = denoiseMask(m_foreground_cloud_mask, 11); 
-    cv_bridge::CvImage foreground_mask_msg2;
-    foreground_mask_msg2.header.stamp = msg->header.stamp;
-    foreground_mask_msg2.header.frame_id = msg->header.frame_id;
-    foreground_mask_msg2.encoding = sensor_msgs::image_encodings::MONO8;
-    foreground_mask_msg2.image = foreground_mask;
-    m_processed_depth_image_pub.publish(foreground_mask_msg2.toImageMsg());
+    // cv_bridge::CvImage foreground_mask_msg2;
+    // foreground_mask_msg2.header.stamp = msg->header.stamp;
+    // foreground_mask_msg2.header.frame_id = msg->header.frame_id;
+    // foreground_mask_msg2.encoding = sensor_msgs::image_encodings::MONO8;
+    // foreground_mask_msg2.image = foreground_mask;
+    // m_processed_depth_image_pub.publish(foreground_mask_msg2.toImageMsg());
 
     // mask the ordered cloud
     auto ordered_masked_cloud = maskOrderedCloud<pcl::PointXYZRGB>(ordered_filtered_cloud, foreground_mask);
@@ -98,8 +99,17 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
     // connected component analysis
     imageCluster(foreground_mask, m_image_labels, m_num_labels, m_bboxes);
 
+    // expand the bounding boxes
+    auto expanded_bboxes = expandBoundingBoxes(m_bboxes, 20);
+
     // draw bounding boxes
-    auto bounding_boxes_image = drawBboxes(foreground_mask, m_bboxes);
+    auto bounding_boxes_image = drawBboxes(m_raw_image, expanded_bboxes);
+    cv_bridge::CvImage bounding_boxes_msg;
+    bounding_boxes_msg.header.stamp = msg->header.stamp;
+    bounding_boxes_msg.header.frame_id = msg->header.frame_id;
+    bounding_boxes_msg.encoding = sensor_msgs::image_encodings::BGR8;
+    bounding_boxes_msg.image = bounding_boxes_image;
+    m_processed_depth_image_pub.publish(bounding_boxes_msg.toImageMsg());
 
     // downsample foreground mask
     auto downsampled_mask = downsampleMask(foreground_mask, 20);
@@ -148,10 +158,10 @@ void PerceptionCore::imageCallback(const sensor_msgs::ImageConstPtr& msg)
         return;
     }
     // get the image
-    cv::Mat image = cv_ptr->image;
+    m_raw_image = cv_ptr->image;
 
     // get foreground mask
-    m_foreground_image_mask = imageBackgroundSubtraction(image, m_background_image, 60);
+    m_foreground_image_mask = imageBackgroundSubtraction(m_raw_image, m_background_image, 60);
 
     // publish the processed image
     cv_bridge::CvImage out_msg;
@@ -615,7 +625,14 @@ std::vector<cv::Rect>& bboxes) {
 cv::Mat PerceptionCore::drawBboxes(const cv::Mat& image, const std::vector<cv::Rect>& bboxes) {
     // convert the image to RGB
     cv::Mat image_rgb;
-    cv::cvtColor(image, image_rgb, cv::COLOR_GRAY2RGB);
+    // if the image is grayscale, convert it to RGB
+    if (image.channels() == 1) {
+        cv::cvtColor(image, image_rgb, cv::COLOR_GRAY2RGB);
+    }
+    // if the image is already RGB, copy it
+    else if (image.channels() == 3) {
+        image_rgb = image.clone();
+    }
     // draw the bounding boxes
     for (size_t i = 0; i < bboxes.size(); i++) {
         cv::rectangle(image_rgb, bboxes[i], cv::Scalar(0, 255, 0), 2);
@@ -858,6 +875,20 @@ cv::Mat PerceptionCore::downsampleMask(const cv::Mat& mask, const int& factor) {
     }
     }
     return downsampled_mask;
+}
+
+std::vector<cv::Rect> PerceptionCore::expandBoundingBoxes(const std::vector<cv::Rect>& bboxes, const int& pixels) {
+    // expand bounding boxes
+    std::vector<cv::Rect> expanded_bboxes;
+    for (size_t i = 0; i < bboxes.size(); i++) {
+        cv::Rect bbox = bboxes[i];
+        bbox.x -= pixels;
+        bbox.y -= pixels;
+        bbox.width += 2 * pixels;
+        bbox.height += 2 * pixels;
+        expanded_bboxes.push_back(bbox);
+    }
+    return expanded_bboxes;
 }
 
 
