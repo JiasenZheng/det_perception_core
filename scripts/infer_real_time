@@ -9,6 +9,7 @@ import numpy as np
 import rospy 
 from sensor_msgs.msg import Image, CompressedImage
 from cv_bridge import CvBridge
+from det_perception_core.srv import Inference, InferenceResponse
 from det_img_seg.seg_inference import SegInference
 
 class InferRealTime(SegInference):
@@ -16,7 +17,6 @@ class InferRealTime(SegInference):
         super(InferRealTime, self).__init__(model, weights, dataset_dir, image_dir, thing_classes)
         self.bridge = CvBridge()
         self.sub_topic = "/l515/color/image_raw"
-        # self.sub_topic = "/l515/color/image_raw/compressed"
         topic_end = self.sub_topic.split('/')[-1]
         if topic_end == 'compressed':
             self.is_compressed = True
@@ -26,29 +26,36 @@ class InferRealTime(SegInference):
             image_type = Image
         self.image_sub = rospy.Subscriber( self.sub_topic, image_type, self.callback)
         self.image_pub = rospy.Publisher( "/l515/color/image_seg", Image, queue_size=1)
+        # create a service for inference
+        self.infer_service = rospy.Service('infer', Inference, self.infer_callback)
+        # init cv_image
+        self.cv_image = None
     
     def callback(self, data):
         # check if the image is compressed
         if self.is_compressed:
             # convert the image to cv2 image
-            cv_image = self.bridge.compressed_imgmsg_to_cv2(data, "bgr8")
+            self.cv_image = self.bridge.compressed_imgmsg_to_cv2(data, "bgr8")
         else:
-            cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
+            self.cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
         
-        output = self.predictor(cv_image)
-        masks = output["instances"].pred_masks
-        masks = masks.cpu().numpy()
-        # rospy.loginfo("masks type: {}".format(type(masks)))
-        num_masks = masks.shape[0]
-        if num_masks > 0:
-            mask = masks[0]
-            mask = mask.astype(np.uint8)
-            mask = mask * 255
+        # output = self.predictor(cv_image)
+        # masks = output["instances"].pred_masks
+        # masks = masks.cpu().numpy()
+        # # rospy.loginfo("masks type: {}".format(type(masks)))
+        # num_masks = masks.shape[0]
+        # if num_masks > 0:
+        #     mask = masks[0]
+        #     mask = mask.astype(np.uint8)
+        #     mask = mask * 255
         
-        # convert the mask to cv2 image
-        cv_mask = self.bridge.cv2_to_imgmsg(mask, "mono8")
-        # publish the mask
-        self.image_pub.publish(cv_mask)
+        # # convert the mask to cv2 image
+        # cv_mask = self.bridge.cv2_to_imgmsg(mask, "mono8")
+        # # publish the mask
+        # self.image_pub.publish(cv_mask)
+
+    def infer_callback(self, req):
+        pass
 
 
 

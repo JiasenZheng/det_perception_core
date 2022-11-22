@@ -1,0 +1,8 @@
+uint16 start_x
+uint16 start_y
+uint16 width
+uint16 height
+---
+uint8 num_labels
+bool[] data
+

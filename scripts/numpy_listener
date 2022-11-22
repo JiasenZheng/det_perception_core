@@ -1,0 +1,18 @@
+#!/usr/bin/python3
+# PKG = 'rospy_tutorials'
+# import roslib; roslib.load_manifest(PKG)
+
+import rospy
+from rospy_tutorials.msg import Floats
+
+def callback(data):
+    rospy.loginfo(rospy.get_caller_id() + "I heard %s", data.data)
+
+def listener():
+    rospy.init_node('listener')
+    rospy.Subscriber("floats", Floats, callback)
+    rospy.spin()
+
+if __name__ == '__main__':
+    listener()
+

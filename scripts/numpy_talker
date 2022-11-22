@@ -1,0 +1,25 @@
+#!/usr/bin/python3
+# PKG = "rospy_tutorials"
+# import roslib; roslib.load_manifest(PKG)
+
+import rospy
+from rospy.numpy_msg import numpy_msg
+from rospy_tutorials.msg import Floats
+
+import numpy 
+def talker():
+    pub = rospy.Publisher('floats', numpy_msg(Floats), queue_size=10)
+    rospy.init_node('talker', anonymous=True)
+    r = rospy.Rate(10)
+    while not rospy.is_shutdown():
+        # create an array of size 3,5,5
+        data = numpy.ones((3,6,6), dtype=numpy.float32)
+        # flatten the array
+        data = data.flatten()
+        pub.publish(data)
+        # rospy.loginfo(data)
+        # pub.publish(numpy.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0], dtype=numpy.float32))
+        r.sleep()
+
+if __name__ == '__main__':
+    talker()

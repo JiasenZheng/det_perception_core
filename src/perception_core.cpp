@@ -24,8 +24,6 @@ PerceptionCore::PerceptionCore(ros::NodeHandle nh): m_nh(nh)
     m_lidar_topic = "/l515/depth_registered/points";
     m_pointcloud_sub = m_nh.subscribe(m_lidar_topic, 1, &PerceptionCore::pointcloudCallback, this);
     m_rgb_image_sub = m_nh.subscribe("/l515/color/image_raw", 1, &PerceptionCore::imageCallback, this);
-    // m_depth_image_sub = m_nh.subscribe("/l515/aligned_depth_to_color/image_raw", 1, &PerceptionCore::depthImageCallback, 
-    // this);
     m_cropped_cloud_pub = m_nh.advertise<sensor_msgs::PointCloud2>("/l515/points/cropped", 1);
     m_processed_cloud_pub = m_nh.advertise<sensor_msgs::PointCloud2>("/l515/points/processed", 1);
     m_cluster_cloud_pub = m_nh.advertise<sensor_msgs::PointCloud2>("/l515/points/cluster", 1);
