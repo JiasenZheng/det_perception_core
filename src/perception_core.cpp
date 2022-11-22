@@ -122,31 +122,54 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
     // loop through the bounding boxes
     for (auto bbox : expanded_bboxes)
     {
-        auto start_x = bbox.x;
-        auto start_y = bbox.y;
-        auto width = bbox.width;
-        auto height = bbox.height;
-        // auto start_x = 0;
-        // auto start_y = 0;
-        // auto width = 1280;
-        // auto height = 720;
+        // auto start_x = bbox.x;
+        // auto start_y = bbox.y;
+        // auto width = bbox.width;
+        // auto height = bbox.height;
+        auto start_x = 0;
+        auto start_y = 0;
+        auto width = 1280;
+        auto height = 720;
         srv.request.start_x = start_x;
         srv.request.start_y = start_y;
         srv.request.width = width;
         srv.request.height = height;
         // call the service
+        auto start = std::chrono::high_resolution_clock::now();
         if (client.call(srv))
         {
             ROS_INFO_STREAM("Inference service called!");
             auto num_inferences = srv.response.num_inferences;
             // log number of inferences
-            ROS_INFO_STREAM("Number of inferences: " << num_inferences);
+            // ROS_INFO_STREAM("Number of inferences: " << num_inferences);
             auto masks = srv.response.data;
+            for (int i = 0; i < num_inferences; ++i) {
+                // create a mask of bool
+                cv::Mat mask = cv::Mat::zeros(height, width, CV_8UC1);
+                for (int row = 0; row < height; ++row) {
+                    for (int col = 0; col < width; ++col) {
+                        auto idx = row * width + col;
+                        idx += i * width * height;
+                        if (masks[idx] == true) {
+                            mask.at<uchar>(row, col) = 255;
+                        }
+                    }
+                }
+                cv_bridge::CvImage mask_msg;
+                mask_msg.header.stamp = msg->header.stamp;
+                mask_msg.header.frame_id = msg->header.frame_id;
+                mask_msg.encoding = sensor_msgs::image_encodings::MONO8;
+                mask_msg.image = mask;
+                m_depth_image_pub.publish(mask_msg.toImageMsg());
+            }
         }
         else
         {
             ROS_ERROR_STREAM("Failed to call inference service!");
         }
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+        ROS_INFO_STREAM("Inference service call took: " << duration.count()/1000000.0 << " seconds");
     }
 
     // // downsample foreground mask
