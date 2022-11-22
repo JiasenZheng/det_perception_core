@@ -93,6 +93,8 @@ public:
     typename OrderedCloud<T>::Ptr maskOrderedCloud(const typename OrderedCloud<T>::Ptr ordered_cloud, 
     const cv::Mat& mask);
     void imageCluster(const cv::Mat& mask, cv::Mat& labels, int& num_labels);
+    void imageCluster(const cv::Mat& mask, cv::Mat& labels, int& num_labels, std::vector<cv::Rect>& bboxes);
+    cv::Mat drawBboxes(const cv::Mat& image, const std::vector<cv::Rect>& bboxes);
     template <typename T>
     std::vector<typename pcl::PointCloud<T>::Ptr> getClusterClouds(const typename OrderedCloud<T>::Ptr ordered_cloud,
     const cv::Mat& labels, const int& num_labels);
@@ -115,6 +117,7 @@ private:
     tf::TransformBroadcaster m_br;
     std::vector<double> m_plane_limits;
     std::vector<cv::Vec3b> m_colors;
+    std::vector<cv::Rect> m_bboxes;
     pcl::ModelCoefficients::Ptr m_plane_coefficients;
     cv::Mat m_background_image;
     cv::Mat m_foreground_image_mask;

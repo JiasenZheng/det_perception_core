@@ -96,7 +96,10 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
     m_processed_cloud_pub.publish(masked_cloud_msg);
 
     // connected component analysis
-    imageCluster(foreground_mask, m_image_labels, m_num_labels);
+    imageCluster(foreground_mask, m_image_labels, m_num_labels, m_bboxes);
+
+    // draw bounding boxes
+    auto bounding_boxes_image = drawBboxes(foreground_mask, m_bboxes);
 
     // downsample foreground mask
     auto downsampled_mask = downsampleMask(foreground_mask, 20);
@@ -565,6 +568,59 @@ void PerceptionCore::imageCluster(const cv::Mat& mask, cv::Mat& labels, int& num
     // log the number of pixels in the largest component and the smallest component
     std::cout << "max pixels: " << max_pixels << std::endl;
     std::cout << "min pixels: " << min_pixels << std::endl;
+}
+
+void PerceptionCore::imageCluster(const cv::Mat& mask, cv::Mat& labels, int& num_labels, 
+std::vector<cv::Rect>& bboxes) {
+    // find the connected components
+    cv::Mat mask_8u;
+    mask.convertTo(mask_8u, CV_8U);
+    num_labels = cv::connectedComponents(mask_8u, labels);
+    num_labels--;
+    // compute bounding boxes for each component
+    bboxes.resize(num_labels);
+    for (int i = 0; i < num_labels; i++) {
+        bboxes[i] = cv::Rect(0, 0, 0, 0);
+    }
+    for (int i = 0; i < mask.rows; i++) {
+        for (int j = 0; j < mask.cols; j++) {
+            if (labels.at<int>(i, j) == 0) {
+                continue;
+            }
+            int label = labels.at<int>(i, j) - 1;
+            if (bboxes[label].x == 0) {
+                bboxes[label].x = j;
+            }
+            else if (bboxes[label].x > j) {
+                bboxes[label].width += bboxes[label].x - j;
+                bboxes[label].x = j;
+            }
+            if (bboxes[label].y == 0) {
+                bboxes[label].y = i;
+            }
+            else if (bboxes[label].y > i) {
+                bboxes[label].height += bboxes[label].y - i;
+                bboxes[label].y = i;
+            }
+            if (bboxes[label].x + bboxes[label].width < j) {
+                bboxes[label].width = j - bboxes[label].x;
+            }
+            if (bboxes[label].y + bboxes[label].height < i) {
+                bboxes[label].height = i - bboxes[label].y;
+            }
+        }
+    }
+}
+
+cv::Mat PerceptionCore::drawBboxes(const cv::Mat& image, const std::vector<cv::Rect>& bboxes) {
+    // convert the image to RGB
+    cv::Mat image_rgb;
+    cv::cvtColor(image, image_rgb, cv::COLOR_GRAY2RGB);
+    // draw the bounding boxes
+    for (size_t i = 0; i < bboxes.size(); i++) {
+        cv::rectangle(image_rgb, bboxes[i], cv::Scalar(0, 255, 0), 2);
+    }
+    return image_rgb;
 }
 
 cv::Mat PerceptionCore::detectContour(const cv::Mat& depth_image) {
