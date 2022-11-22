@@ -106,11 +106,17 @@ public:
     std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> getClusterClouds(
     const typename OrderedCloud<pcl::PointXYZRGB>::Ptr ordered_cloud,
     const cv::Mat& labels, const int& num_labels, const cv::Mat& downsampled_mask);
+    std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> getClusterClouds(
+    const typename OrderedCloud<pcl::PointXYZRGB>::Ptr ordered_cloud,
+    const cv::Mat& downsampled_mask, const int& num_inferences);
     template <typename T>
     void computeOBB(const typename pcl::PointCloud<T>::Ptr cloud, Eigen::Vector3f& position,
     Eigen::Quaternionf& orientation, Eigen::Vector3f& dimensions);
     cv::Mat downsampleMask(const cv::Mat& mask, const int& factor);
     std::vector<cv::Rect> expandBoundingBoxes(const std::vector<cv::Rect>& bboxes, const int& pixels);
+    cv::Mat mergeMasks(const cv::Mat& foreground_mask, const std::vector<unsigned char>& masks, const int& width, 
+    const int& height, const int& num_labels);
+
 
 private:
     int m_image_count;

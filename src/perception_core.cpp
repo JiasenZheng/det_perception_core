@@ -106,92 +106,123 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
     masked_cloud_msg.header.stamp = msg->header.stamp;
     m_processed_cloud_pub.publish(masked_cloud_msg);
 
-    // connected component analysis
-    imageCluster(foreground_mask, m_image_labels, m_num_labels, m_bboxes);
+    ///////////////// do not need this for now ///////////////////////
+    // // connected component analysis
+    // imageCluster(foreground_mask, m_image_labels, m_num_labels, m_bboxes);
 
-    // expand the bounding boxes
-    auto expanded_bboxes = expandBoundingBoxes(m_bboxes, 20);
+    // // expand the bounding boxes
+    // auto expanded_bboxes = expandBoundingBoxes(m_bboxes, 20);
 
-    // draw bounding boxes
-    auto bounding_boxes_image = drawBboxes(m_raw_image, expanded_bboxes);
-    cv_bridge::CvImage bounding_boxes_msg;
-    bounding_boxes_msg.header.stamp = msg->header.stamp;
-    bounding_boxes_msg.header.frame_id = msg->header.frame_id;
-    bounding_boxes_msg.encoding = sensor_msgs::image_encodings::BGR8;
-    bounding_boxes_msg.image = bounding_boxes_image;
-    m_processed_depth_image_pub.publish(bounding_boxes_msg.toImageMsg());
+    // // draw bounding boxes
+    // auto bounding_boxes_image = drawBboxes(m_raw_image, expanded_bboxes);
+    // cv_bridge::CvImage bounding_boxes_msg;
+    // bounding_boxes_msg.header.stamp = msg->header.stamp;
+    // bounding_boxes_msg.header.frame_id = msg->header.frame_id;
+    // bounding_boxes_msg.encoding = sensor_msgs::image_encodings::BGR8;
+    // bounding_boxes_msg.image = bounding_boxes_image;
+    // m_processed_depth_image_pub.publish(bounding_boxes_msg.toImageMsg());
+    /////////////////////////// end //////////////////////////////////
 
-    // loop through the bounding boxes
-    for (auto bbox : expanded_bboxes)
+    int num_inferences = 0;
+    std::vector<unsigned char> inference_masks;
+
+    // auto start = std::chrono::high_resolution_clock::now();
+    if (m_infer_client.call(m_infer_srv))
     {
-        // call the service
-        auto start = std::chrono::high_resolution_clock::now();
-        if (m_infer_client.call(m_infer_srv))
-        {
-            ROS_INFO_STREAM("Inference service called!");
-            auto num_inferences = m_infer_srv.response.num_inferences;
-            // log number of inferences
-            // ROS_INFO_STREAM("Number of inferences: " << num_inferences);
-            auto masks = m_infer_srv.response.data;
-            for (int i = 0; i < num_inferences; ++i) {
-                // create a mask of bool
-                cv::Mat mask = cv::Mat::zeros(m_height, m_width, CV_8UC1);
-                for (int row = 0; row < m_height; ++row) {
-                    for (int col = 0; col < m_width; ++col) {
-                        auto idx = row * m_width + col;
-                        idx += i * m_width * m_height;
-                        if (masks[idx] == true) {
-                            mask.at<uchar>(row, col) = 255;
-                        }
+        // ROS_INFO_STREAM("Inference service called!");
+        num_inferences = m_infer_srv.response.num_inferences;
+        // log data type of num_inferences
+        // ROS_INFO_STREAM("num_inferences data type: " << typeid(num_inferences).name());
+        // log number of inferences
+        // ROS_INFO_STREAM("Number of inferences: " << num_inferences);
+        inference_masks = m_infer_srv.response.data;
+        // log data type of inference_masks
+        // ROS_INFO_STREAM("inference_masks data type: " << typeid(inference_masks).name());
+        for (int i = 0; i < num_inferences; ++i) {
+            // create a mask of bool
+            cv::Mat mask = cv::Mat::zeros(m_height, m_width, CV_8UC1);
+            for (int row = 0; row < m_height; ++row) {
+                for (int col = 0; col < m_width; ++col) {
+                    auto idx = row * m_width + col;
+                    idx += i * m_width * m_height;
+                    if (inference_masks[idx] == true) {
+                        mask.at<uchar>(row, col) = 255;
                     }
                 }
-                cv_bridge::CvImage mask_msg;
-                mask_msg.header.stamp = msg->header.stamp;
-                mask_msg.header.frame_id = msg->header.frame_id;
-                mask_msg.encoding = sensor_msgs::image_encodings::MONO8;
-                mask_msg.image = mask;
-                m_depth_image_pub.publish(mask_msg.toImageMsg());
             }
+            // cv_bridge::CvImage mask_msg;
+            // mask_msg.header.stamp = msg->header.stamp;
+            // mask_msg.header.frame_id = msg->header.frame_id;
+            // mask_msg.encoding = sensor_msgs::image_encodings::MONO8;
+            // mask_msg.image = mask;
+            // m_depth_image_pub.publish(mask_msg.toImageMsg());
         }
-        else
-        {
-            ROS_ERROR_STREAM("Failed to call inference service!");
-        }
-        auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-        ROS_INFO_STREAM("Inference service call took: " << duration.count()/1000000.0 << " seconds");
     }
+    else
+    {
+        ROS_ERROR_STREAM("Failed to call inference service!");
+    }
+    // auto end = std::chrono::high_resolution_clock::now();
+    // auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    // ROS_INFO_STREAM("Inference service call took: " << duration.count()/1000000.0 << " seconds");
 
-    // // downsample foreground mask
-    // auto downsampled_mask = downsampleMask(foreground_mask, 20);
-
-    // // get cluster clouds
-    // auto cluster_clouds = getClusterClouds(ordered_masked_cloud, m_image_labels, m_num_labels, downsampled_mask);
-
-    // // colorize the cluster clouds
-    // pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_clustered_cloud = colorizeClusters<pcl::PointXYZ>(cluster_clouds,
-    // m_colors);
-    // sensor_msgs::PointCloud2 colored_clustered_cloud_msg;
-    // pcl::toROSMsg(*colored_clustered_cloud, colored_clustered_cloud_msg);
-    // colored_clustered_cloud_msg.header.frame_id = msg->header.frame_id;
-    // colored_clustered_cloud_msg.header.stamp = msg->header.stamp;
-    // m_cluster_cloud_pub.publish(colored_clustered_cloud_msg);
-
-    // // get cluster oriented bounding boxes
-    // for (size_t i = 0; i < cluster_clouds.size(); i++)
-    // {
-    //     auto cluster_cloud = cluster_clouds[i];
-    //     Eigen::Vector3f position;
-    //     Eigen::Quaternionf orientation;
-    //     Eigen::Vector3f dimensions;
-    //     computeOBB<pcl::PointXYZ>(cluster_cloud, position, orientation, dimensions);
-    //     // publish a tf
-    //     tf::Transform transform;
-    //     transform.setOrigin(tf::Vector3(position[0], position[1], position[2]));
-    //     tf::Quaternion q(orientation.x(), orientation.y(), orientation.z(), orientation.w());
-    //     transform.setRotation(q);
-    //     m_br.sendTransform(tf::StampedTransform(transform, msg->header.stamp, msg->header.frame_id, "cluster_" + std::to_string(i)));
+    // merge foreground mask and inference masks
+    cv::Mat merged_mask = mergeMasks(foreground_mask, inference_masks, m_width, m_height, num_inferences);
+    // log the max and min of the mask
+    // get the max num of cv::Mat
+    double min, max;
+    cv::minMaxLoc(merged_mask, &min, &max);
+    // log the max and min of the mask
+    // ROS_INFO_STREAM("max: " << max << ", min: " << min);
+    // // create a rgb image
+    // auto merged_rgb_mask = cv::Mat::zeros(m_height, m_width, CV_8UC3);
+    // for (int row = 0; row < m_height; ++row) {
+    //     for (int col = 0; col < m_width; ++col) {
+    //         if (merged_mask.at<uchar>(row, col) == 0) {
+    //             continue;
+    //         }
+    //         auto color_idx = merged_mask.at<uchar>(row, col) % 6;
+    //         merged_rgb_mask.at<cv::Vec3b>(row, col) = m_colors[color_idx];
+    //     }
     // }
+    // cv_bridge::CvImage merged_rgb_mask_msg;
+    // merged_rgb_mask_msg.header.stamp = msg->header.stamp;
+    // merged_rgb_mask_msg.header.frame_id = msg->header.frame_id;
+    // merged_rgb_mask_msg.encoding = sensor_msgs::image_encodings::BGR8;
+    // merged_rgb_mask_msg.image = merged_rgb_mask;
+    // m_depth_image_pub.publish(merged_rgb_mask_msg.toImageMsg());
+
+
+    // downsample foreground mask
+    auto downsampled_mask = downsampleMask(merged_mask, 20);
+
+    // get cluster clouds
+    auto cluster_clouds = getClusterClouds(ordered_masked_cloud, downsampled_mask, num_inferences);
+
+    // colorize the cluster clouds
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_clustered_cloud = colorizeClusters<pcl::PointXYZ>(cluster_clouds,
+    m_colors);
+    sensor_msgs::PointCloud2 colored_clustered_cloud_msg;
+    pcl::toROSMsg(*colored_clustered_cloud, colored_clustered_cloud_msg);
+    colored_clustered_cloud_msg.header.frame_id = msg->header.frame_id;
+    colored_clustered_cloud_msg.header.stamp = msg->header.stamp;
+    m_cluster_cloud_pub.publish(colored_clustered_cloud_msg);
+
+    // get cluster oriented bounding boxes
+    for (size_t i = 0; i < cluster_clouds.size(); i++)
+    {
+        auto cluster_cloud = cluster_clouds[i];
+        Eigen::Vector3f position;
+        Eigen::Quaternionf orientation;
+        Eigen::Vector3f dimensions;
+        computeOBB<pcl::PointXYZ>(cluster_cloud, position, orientation, dimensions);
+        // publish a tf
+        tf::Transform transform;
+        transform.setOrigin(tf::Vector3(position[0], position[1], position[2]));
+        tf::Quaternion q(orientation.x(), orientation.y(), orientation.z(), orientation.w());
+        transform.setRotation(q);
+        m_br.sendTransform(tf::StampedTransform(transform, msg->header.stamp, msg->header.frame_id, "cluster_" + std::to_string(i)));
+    }
 
 }
 
@@ -869,6 +900,40 @@ const cv::Mat& labels, const int& num_labels, const cv::Mat& downsampled_mask) {
     return cluster_clouds;
 }
 
+std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> PerceptionCore::getClusterClouds(
+const typename OrderedCloud<pcl::PointXYZRGB>::Ptr ordered_cloud,
+const cv::Mat& downsampled_mask, const int& num_inferences) {
+    // get the point clouds of each cluster
+    std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> cluster_clouds(num_inferences);
+    for (int i = 0; i < num_inferences; i++) {
+        cluster_clouds[i] = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>);
+    }
+    for (size_t i = 0; i < ordered_cloud->cloud->height; i++) {
+    for (size_t j = 0; j < ordered_cloud->cloud->width; j++) {
+        int x = ordered_cloud->start_x + j;
+        int y = ordered_cloud->start_y + i;
+        if (downsampled_mask.at<uchar>(y, x) == 0) {
+            continue;
+        }
+        // check if the point is valid
+        if (std::isnan(ordered_cloud->cloud->points[i * ordered_cloud->cloud->width + j].x)) {
+            continue;
+        }
+        pcl::PointXYZ point;
+        point.x = ordered_cloud->cloud->points[i * ordered_cloud->cloud->width + j].x;
+        point.y = ordered_cloud->cloud->points[i * ordered_cloud->cloud->width + j].y;
+        point.z = ordered_cloud->cloud->points[i * ordered_cloud->cloud->width + j].z;
+        cluster_clouds[downsampled_mask.at<uchar>(y, x) - 1]->points.push_back(point);
+    }
+    }
+    for (int i = 0; i < num_inferences; i++) {
+        cluster_clouds[i]->width = cluster_clouds[i]->points.size();
+        cluster_clouds[i]->height = 1;
+        cluster_clouds[i]->is_dense = true;
+    }
+    return cluster_clouds;
+}
+
 template <typename T>
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr PerceptionCore::colorizeClusters(
 std::vector<typename pcl::PointCloud<T>::Ptr> cluster_clouds,
@@ -940,6 +1005,26 @@ std::vector<cv::Rect> PerceptionCore::expandBoundingBoxes(const std::vector<cv::
         expanded_bboxes.push_back(bbox);
     }
     return expanded_bboxes;
+}
+
+cv::Mat PerceptionCore::mergeMasks(const cv::Mat& foreground_mask, const std::vector<unsigned char>& masks, 
+const int& width, const int& height, const int& num_labels) {
+    // merge masks
+    cv::Mat merged_mask = cv::Mat::zeros(height, width, CV_8UC1);
+    for (int n = 0; n < num_labels; n++) {
+    for (int i = 0; i < height; i++) {
+        for (int j = 0; j < width; j++) {
+        if (masks[n * height * width + i * width + j] == 0) {
+            continue;
+        }
+        if (foreground_mask.at<uchar>(i, j) == 0) {
+            continue;
+        }
+        merged_mask.at<uchar>(i, j) = n + 1;
+        }
+    }
+    }
+    return merged_mask;
 }
 
 
