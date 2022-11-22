@@ -32,6 +32,8 @@ PerceptionCore::PerceptionCore(ros::NodeHandle nh): m_nh(nh)
     m_foreground_image_pub = m_nh.advertise<sensor_msgs::Image>("/l515/image/foreground", 1);
     m_depth_image_pub = m_nh.advertise<sensor_msgs::Image>("/l515/image/depth", 1);
     m_processed_depth_image_pub = m_nh.advertise<sensor_msgs::Image>("/l515/image/depth/processed", 1);
+    // wait for service
+    ros::service::waitForService("/infer");
 }
 
 void PerceptionCore::run()
@@ -111,36 +113,72 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
     bounding_boxes_msg.image = bounding_boxes_image;
     m_processed_depth_image_pub.publish(bounding_boxes_msg.toImageMsg());
 
-    // downsample foreground mask
-    auto downsampled_mask = downsampleMask(foreground_mask, 20);
 
-    // get cluster clouds
-    auto cluster_clouds = getClusterClouds(ordered_masked_cloud, m_image_labels, m_num_labels, downsampled_mask);
+    // create an infer service
+    ros::ServiceClient client = m_nh.serviceClient<det_perception_core::Inference>("/infer");
+    det_perception_core::Inference srv;
 
-    // colorize the cluster clouds
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_clustered_cloud = colorizeClusters<pcl::PointXYZ>(cluster_clouds,
-    m_colors);
-    sensor_msgs::PointCloud2 colored_clustered_cloud_msg;
-    pcl::toROSMsg(*colored_clustered_cloud, colored_clustered_cloud_msg);
-    colored_clustered_cloud_msg.header.frame_id = msg->header.frame_id;
-    colored_clustered_cloud_msg.header.stamp = msg->header.stamp;
-    m_cluster_cloud_pub.publish(colored_clustered_cloud_msg);
 
-    // get cluster oriented bounding boxes
-    for (size_t i = 0; i < cluster_clouds.size(); i++)
+    // loop through the bounding boxes
+    for (auto bbox : expanded_bboxes)
     {
-        auto cluster_cloud = cluster_clouds[i];
-        Eigen::Vector3f position;
-        Eigen::Quaternionf orientation;
-        Eigen::Vector3f dimensions;
-        computeOBB<pcl::PointXYZ>(cluster_cloud, position, orientation, dimensions);
-        // publish a tf
-        tf::Transform transform;
-        transform.setOrigin(tf::Vector3(position[0], position[1], position[2]));
-        tf::Quaternion q(orientation.x(), orientation.y(), orientation.z(), orientation.w());
-        transform.setRotation(q);
-        m_br.sendTransform(tf::StampedTransform(transform, msg->header.stamp, msg->header.frame_id, "cluster_" + std::to_string(i)));
+        auto start_x = bbox.x;
+        auto start_y = bbox.y;
+        auto width = bbox.width;
+        auto height = bbox.height;
+        // auto start_x = 0;
+        // auto start_y = 0;
+        // auto width = 1280;
+        // auto height = 720;
+        srv.request.start_x = start_x;
+        srv.request.start_y = start_y;
+        srv.request.width = width;
+        srv.request.height = height;
+        // call the service
+        if (client.call(srv))
+        {
+            ROS_INFO_STREAM("Inference service called!");
+            auto num_inferences = srv.response.num_inferences;
+            // log number of inferences
+            ROS_INFO_STREAM("Number of inferences: " << num_inferences);
+            auto masks = srv.response.data;
+        }
+        else
+        {
+            ROS_ERROR_STREAM("Failed to call inference service!");
+        }
     }
+
+    // // downsample foreground mask
+    // auto downsampled_mask = downsampleMask(foreground_mask, 20);
+
+    // // get cluster clouds
+    // auto cluster_clouds = getClusterClouds(ordered_masked_cloud, m_image_labels, m_num_labels, downsampled_mask);
+
+    // // colorize the cluster clouds
+    // pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_clustered_cloud = colorizeClusters<pcl::PointXYZ>(cluster_clouds,
+    // m_colors);
+    // sensor_msgs::PointCloud2 colored_clustered_cloud_msg;
+    // pcl::toROSMsg(*colored_clustered_cloud, colored_clustered_cloud_msg);
+    // colored_clustered_cloud_msg.header.frame_id = msg->header.frame_id;
+    // colored_clustered_cloud_msg.header.stamp = msg->header.stamp;
+    // m_cluster_cloud_pub.publish(colored_clustered_cloud_msg);
+
+    // // get cluster oriented bounding boxes
+    // for (size_t i = 0; i < cluster_clouds.size(); i++)
+    // {
+    //     auto cluster_cloud = cluster_clouds[i];
+    //     Eigen::Vector3f position;
+    //     Eigen::Quaternionf orientation;
+    //     Eigen::Vector3f dimensions;
+    //     computeOBB<pcl::PointXYZ>(cluster_cloud, position, orientation, dimensions);
+    //     // publish a tf
+    //     tf::Transform transform;
+    //     transform.setOrigin(tf::Vector3(position[0], position[1], position[2]));
+    //     tf::Quaternion q(orientation.x(), orientation.y(), orientation.z(), orientation.w());
+    //     transform.setRotation(q);
+    //     m_br.sendTransform(tf::StampedTransform(transform, msg->header.stamp, msg->header.frame_id, "cluster_" + std::to_string(i)));
+    // }
 
 }
 

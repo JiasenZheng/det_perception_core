@@ -25,6 +25,7 @@
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/Image.h>
 #include <cv_bridge/cv_bridge.h>
+#include "det_perception_core/Inference.h"
 
 // data structure to store ordered point cloud and its start pixel coordinate
 template <typename T>

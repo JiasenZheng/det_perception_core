@@ -1,8 +1,9 @@
-uint16 start_x
-uint16 start_y
-uint16 width
-uint16 height
+int64 start_x
+int64 start_y
+int64 width
+int64 height
 ---
-uint8 num_inferences
+int64 num_inferences
 bool[] data
+
 
