@@ -11,6 +11,8 @@ PerceptionCore::PerceptionCore(ros::NodeHandle nh): m_nh(nh)
     m_nh.param("margin_pixels", m_margin_pixels, 20);
     m_raw_image = cv::Mat::zeros(480, 640, CV_8UC3);
     m_image_count = 100;
+    m_height = 720;
+    m_width = 1280;
     // init list of colors
     m_colors.push_back(cv::Vec3b(255, 0, 0));
     m_colors.push_back(cv::Vec3b(0, 255, 0));
@@ -19,8 +21,8 @@ PerceptionCore::PerceptionCore(ros::NodeHandle nh): m_nh(nh)
     m_colors.push_back(cv::Vec3b(255, 0, 255));
     m_colors.push_back(cv::Vec3b(0, 255, 255));
     m_background_image_path = "/home/jiasen/det_ws/src/det_perception_core/image/background.png";
-    m_foreground_image_mask = cv::Mat::zeros(720, 1280, CV_8UC1);
-    m_foreground_cloud_mask = cv::Mat::zeros(720, 1280, CV_8UC1);
+    m_foreground_image_mask = cv::Mat::zeros(m_height, m_width, CV_8UC1);
+    m_foreground_cloud_mask = cv::Mat::zeros(m_height, m_width, CV_8UC1);
     m_background_image = cv::imread(m_background_image_path, cv::IMREAD_COLOR);
     m_lidar_topic = "/l515/depth_registered/points";
     m_pointcloud_sub = m_nh.subscribe(m_lidar_topic, 1, &PerceptionCore::pointcloudCallback, this);
@@ -34,6 +36,12 @@ PerceptionCore::PerceptionCore(ros::NodeHandle nh): m_nh(nh)
     m_processed_depth_image_pub = m_nh.advertise<sensor_msgs::Image>("/l515/image/depth/processed", 1);
     // wait for service
     ros::service::waitForService("/infer");
+    // create an infer service
+    m_infer_client = m_nh.serviceClient<det_perception_core::Inference>("/infer");
+    m_infer_srv.request.start_x = 0;
+    m_infer_srv.request.start_y = 0;
+    m_infer_srv.request.width = m_width;
+    m_infer_srv.request.height = m_height;
 }
 
 void PerceptionCore::run()
@@ -113,43 +121,25 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
     bounding_boxes_msg.image = bounding_boxes_image;
     m_processed_depth_image_pub.publish(bounding_boxes_msg.toImageMsg());
 
-
-    // create an infer service
-    ros::ServiceClient client = m_nh.serviceClient<det_perception_core::Inference>("/infer");
-    det_perception_core::Inference srv;
-
-
     // loop through the bounding boxes
     for (auto bbox : expanded_bboxes)
     {
-        // auto start_x = bbox.x;
-        // auto start_y = bbox.y;
-        // auto width = bbox.width;
-        // auto height = bbox.height;
-        auto start_x = 0;
-        auto start_y = 0;
-        auto width = 1280;
-        auto height = 720;
-        srv.request.start_x = start_x;
-        srv.request.start_y = start_y;
-        srv.request.width = width;
-        srv.request.height = height;
         // call the service
         auto start = std::chrono::high_resolution_clock::now();
-        if (client.call(srv))
+        if (m_infer_client.call(m_infer_srv))
         {
             ROS_INFO_STREAM("Inference service called!");
-            auto num_inferences = srv.response.num_inferences;
+            auto num_inferences = m_infer_srv.response.num_inferences;
             // log number of inferences
             // ROS_INFO_STREAM("Number of inferences: " << num_inferences);
-            auto masks = srv.response.data;
+            auto masks = m_infer_srv.response.data;
             for (int i = 0; i < num_inferences; ++i) {
                 // create a mask of bool
-                cv::Mat mask = cv::Mat::zeros(height, width, CV_8UC1);
-                for (int row = 0; row < height; ++row) {
-                    for (int col = 0; col < width; ++col) {
-                        auto idx = row * width + col;
-                        idx += i * width * height;
+                cv::Mat mask = cv::Mat::zeros(m_height, m_width, CV_8UC1);
+                for (int row = 0; row < m_height; ++row) {
+                    for (int col = 0; col < m_width; ++col) {
+                        auto idx = row * m_width + col;
+                        idx += i * m_width * m_height;
                         if (masks[idx] == true) {
                             mask.at<uchar>(row, col) = 255;
                         }

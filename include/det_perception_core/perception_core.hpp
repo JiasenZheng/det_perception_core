@@ -116,6 +116,8 @@ private:
     int m_image_count;
     int m_margin_pixels;
     int m_num_labels;
+    int m_height;
+    int m_width;
     tf::TransformBroadcaster m_br;
     std::vector<double> m_plane_limits;
     std::vector<cv::Vec3b> m_colors;
@@ -129,6 +131,8 @@ private:
     std::string m_background_image_path;
     ros::NodeHandle m_nh;
     std::string m_lidar_topic;
+    ros::ServiceClient m_infer_client;
+    det_perception_core::Inference m_infer_srv;
     ros::Subscriber m_pointcloud_sub;
     ros::Subscriber m_rgb_image_sub;
     // ros::Subscriber m_depth_image_sub;
