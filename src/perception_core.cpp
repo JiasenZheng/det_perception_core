@@ -34,6 +34,7 @@ PerceptionCore::PerceptionCore(ros::NodeHandle nh): m_nh(nh)
     m_foreground_image_pub = m_nh.advertise<sensor_msgs::Image>("/l515/image/foreground", 1);
     m_depth_image_pub = m_nh.advertise<sensor_msgs::Image>("/l515/image/depth", 1);
     m_processed_depth_image_pub = m_nh.advertise<sensor_msgs::Image>("/l515/image/depth/processed", 1);
+    m_marker_pub = m_nh.advertise<visualization_msgs::Marker>("/l515/marker", 0);
     // wait for service
     ros::service::waitForService("/infer");
     // create an infer service
@@ -170,8 +171,8 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
     cv::Mat merged_mask = mergeMasks(foreground_mask, inference_masks, m_width, m_height, num_inferences);
     // log the max and min of the mask
     // get the max num of cv::Mat
-    double min, max;
-    cv::minMaxLoc(merged_mask, &min, &max);
+    // double min, max;
+    // cv::minMaxLoc(merged_mask, &min, &max);
     // log the max and min of the mask
     // ROS_INFO_STREAM("max: " << max << ", min: " << min);
     // // create a rgb image
@@ -222,6 +223,29 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
         tf::Quaternion q(orientation.x(), orientation.y(), orientation.z(), orientation.w());
         transform.setRotation(q);
         m_br.sendTransform(tf::StampedTransform(transform, msg->header.stamp, msg->header.frame_id, "cluster_" + std::to_string(i)));
+        // publish a marker
+        visualization_msgs::Marker marker;
+        marker.header.frame_id = msg->header.frame_id;
+        marker.header.stamp = msg->header.stamp;
+        marker.ns = "cluster_" + std::to_string(i);
+        marker.id = 0;
+        marker.type = visualization_msgs::Marker::CUBE;
+        marker.action = visualization_msgs::Marker::ADD;
+        marker.pose.position.x = position[0];
+        marker.pose.position.y = position[1];
+        marker.pose.position.z = position[2];
+        marker.pose.orientation.x = orientation.x();
+        marker.pose.orientation.y = orientation.y();
+        marker.pose.orientation.z = orientation.z();
+        marker.pose.orientation.w = orientation.w();
+        marker.scale.x = dimensions[0];
+        marker.scale.y = dimensions[1];
+        marker.scale.z = dimensions[2];
+        marker.color.a = 0.5;
+        marker.color.r = m_colors[i % 6][0] / 255.0;
+        marker.color.g = m_colors[i % 6][1] / 255.0;
+        marker.color.b = m_colors[i % 6][2] / 255.0;
+        m_marker_pub.publish(marker);
     }
 
 }

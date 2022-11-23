@@ -180,6 +180,8 @@ Visualization Manager:
           Value: true
         cluster_2:
           Value: true
+        cluster_3:
+          Value: true
         l515_aligned_depth_to_color_frame:
           Value: false
         l515_color_frame:
@@ -211,12 +213,24 @@ Visualization Manager:
                 {}
               cluster_2:
                 {}
+              cluster_3:
+                {}
           l515_color_frame:
             {}
           l515_depth_frame:
             l515_depth_optical_frame:
               {}
       Update Interval: 0
+      Value: true
+    - Class: rviz/Marker
+      Enabled: true
+      Marker Topic: /l515/marker
+      Name: Marker
+      Namespaces:
+        cluster_0: true
+        cluster_1: true
+        cluster_2: true
+      Queue Size: 100
       Value: true
   Enabled: true
   Global Options:
@@ -246,7 +260,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 1.832841396331787
+      Distance: 1.3559889793395996
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -262,9 +276,9 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: -0.5447974801063538
+      Pitch: -1.0847985744476318
       Target Frame: <Fixed Frame>
-      Yaw: 3.1636714935302734
+      Yaw: 3.113675594329834
     Saved: ~
 Window Geometry:
   Displays:

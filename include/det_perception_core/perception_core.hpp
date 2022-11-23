@@ -24,6 +24,7 @@
 #include <opencv2/calib3d.hpp>
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/Image.h>
+#include <visualization_msgs/Marker.h>
 #include <cv_bridge/cv_bridge.h>
 #include "det_perception_core/Inference.h"
 
@@ -149,4 +150,5 @@ private:
     ros::Publisher m_foreground_image_pub;
     ros::Publisher m_depth_image_pub;
     ros::Publisher m_processed_depth_image_pub;
+    ros::Publisher m_marker_pub;
 };
