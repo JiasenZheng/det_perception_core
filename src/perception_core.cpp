@@ -230,7 +230,7 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
         marker.ns = "cluster_" + std::to_string(i);
         marker.id = 0;
         marker.type = visualization_msgs::Marker::MESH_RESOURCE;
-        marker.mesh_resource = "https://raw.githubusercontent.com/JiasenZheng/det_perception_core/main/meshes/textured.dae";
+        marker.mesh_resource = "package://det_perception_core/meshes/textured.dae";
         marker.action = visualization_msgs::Marker::ADD;
         marker.pose.position.x = position[0];
         marker.pose.position.y = position[1];
