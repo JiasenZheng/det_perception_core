@@ -21,6 +21,7 @@ PerceptionCore::PerceptionCore(ros::NodeHandle nh): m_nh(nh)
     m_colors.push_back(cv::Vec3b(255, 0, 255));
     m_colors.push_back(cv::Vec3b(0, 255, 255));
     m_background_image_path = "/home/jiasen/det_ws/src/det_perception_core/image/background.png";
+    m_stl_mesh_path = "/home/jiasen/det_ws/src/det_perception_core/meshes/nontextured.stl";
     m_foreground_image_mask = cv::Mat::zeros(m_height, m_width, CV_8UC1);
     m_foreground_cloud_mask = cv::Mat::zeros(m_height, m_width, CV_8UC1);
     m_background_image = cv::imread(m_background_image_path, cv::IMREAD_COLOR);
@@ -43,6 +44,9 @@ PerceptionCore::PerceptionCore(ros::NodeHandle nh): m_nh(nh)
     m_infer_srv.request.start_y = 0;
     m_infer_srv.request.width = m_width;
     m_infer_srv.request.height = m_height;
+    // load the mesh and compute the centroid of the mesh
+    pcl::PolygonMesh mesh;
+    loadMesh(m_stl_mesh_path, mesh, m_transform);
 }
 
 void PerceptionCore::run()
@@ -217,6 +221,12 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
         Eigen::Quaternionf orientation;
         Eigen::Vector3f dimensions;
         computeOBB<pcl::PointXYZ>(cluster_cloud, position, orientation, dimensions);
+        // compute the homogeneous transformation matrix
+        Eigen::Matrix4f Tworld_center = Eigen::Matrix4f::Identity();
+        Tworld_center.block<3, 3>(0, 0) = orientation.toRotationMatrix();
+        Tworld_center.block<3, 1>(0, 3) = position;
+        auto Tcenter_origin = m_transform.inverse();
+        auto Tworld_origin = Tworld_center * Tcenter_origin;
         // publish a tf
         tf::Transform transform;
         transform.setOrigin(tf::Vector3(position[0], position[1], position[2]));
@@ -232,13 +242,15 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
         marker.type = visualization_msgs::Marker::MESH_RESOURCE;
         marker.mesh_resource = "package://det_perception_core/meshes/textured.dae";
         marker.action = visualization_msgs::Marker::ADD;
-        marker.pose.position.x = position[0];
-        marker.pose.position.y = position[1];
-        marker.pose.position.z = position[2];
-        marker.pose.orientation.x = orientation.x();
-        marker.pose.orientation.y = orientation.y();
-        marker.pose.orientation.z = orientation.z();
-        marker.pose.orientation.w = orientation.w();
+        marker.pose.position.x = Tworld_origin(0, 3);
+        marker.pose.position.y = Tworld_origin(1, 3);
+        marker.pose.position.z = Tworld_origin(2, 3);
+        // convert the rotation matrix to quaternion
+        Eigen::Quaternionf q2(Tworld_origin.block<3, 3>(0, 0));
+        marker.pose.orientation.x = q2.x();
+        marker.pose.orientation.y = q2.y();
+        marker.pose.orientation.z = q2.z();
+        marker.pose.orientation.w = q2.w();
         marker.scale.x = 1.0;
         marker.scale.y = 1.0;
         marker.scale.z = 1.0;
@@ -275,49 +287,6 @@ void PerceptionCore::imageCallback(const sensor_msgs::ImageConstPtr& msg)
     out_msg.image = m_foreground_image_mask;
     m_processed_image_pub.publish(out_msg.toImageMsg());
 }
-
-// void PerceptionCore::depthImageCallback(const sensor_msgs::ImageConstPtr& msg) {
-//     // convert to cv::Mat
-//     cv_bridge::CvImagePtr cv_ptr;
-//     try
-//     {
-//         cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::TYPE_32FC1);
-//     }
-//     catch (cv_bridge::Exception& e)
-//     {
-//         ROS_ERROR("cv_bridge exception: %s", e.what());
-//         return;
-//     }
-//     // get the image
-//     cv::Mat image = cv_ptr->image;
-
-//     // auto contour_image = detectContour(image);
-//     // cv_bridge::CvImage contour_msg;
-//     // contour_msg.header.stamp = msg->header.stamp;
-//     // contour_msg.header.frame_id = msg->header.frame_id;
-//     // contour_msg.encoding = sensor_msgs::image_encodings::MONO8;
-//     // contour_msg.image = contour_image;
-//     // m_depth_image_pub.publish(contour_msg.toImageMsg());
-
-//     // // mask depth image
-//     // auto masked_image = maskDepthImage(image, m_foreground_cloud_mask);
-//     // cv_bridge::CvImage masked_msg;
-//     // masked_msg.header.stamp = msg->header.stamp;
-//     // masked_msg.header.frame_id = msg->header.frame_id;
-//     // masked_msg.encoding = sensor_msgs::image_encodings::TYPE_32FC1;
-//     // masked_msg.image = masked_image;
-//     // m_depth_image_pub.publish(masked_msg.toImageMsg());
-
-//     // // outlier removal
-//     // auto filtered_image = outlierRemoval(image, m_foreground_cloud_mask, 0.02);
-//     // cv_bridge::CvImage filtered_msg;
-//     // filtered_msg.header.stamp = msg->header.stamp;
-//     // filtered_msg.header.frame_id = msg->header.frame_id;
-//     // filtered_msg.encoding = sensor_msgs::image_encodings::TYPE_32FC1;
-//     // filtered_msg.image = filtered_image;
-//     // m_processed_depth_image_pub.publish(filtered_msg.toImageMsg());
-
-// }
 
 template <typename T>
 void PerceptionCore::planeSegmentation(const typename pcl::PointCloud<T>::Ptr cloud, int max_iterations, 
@@ -1050,6 +1019,32 @@ const int& width, const int& height, const int& num_labels) {
     return merged_mask;
 }
 
+void PerceptionCore::loadMesh(const std::string& filename, pcl::PolygonMesh& mesh, Eigen::Matrix4f& transform) {
+    // load mesh
+    pcl::io::loadPolygonFileSTL(filename, mesh);
+    // compute the bounding box
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::fromPCLPointCloud2(mesh.cloud, *cloud);
+    pcl::MomentOfInertiaEstimation<pcl::PointXYZ> feature_extractor;
+    feature_extractor.setInputCloud(cloud);
+    feature_extractor.compute();
+    pcl::PointXYZ min_point_OBB;
+    pcl::PointXYZ max_point_OBB;
+    pcl::PointXYZ position_OBB;
+    Eigen::Matrix3f rotational_matrix_OBB;
+    feature_extractor.getOBB(min_point_OBB, max_point_OBB, position_OBB, rotational_matrix_OBB);
+    Eigen::Vector3f position = position_OBB.getVector3fMap();
+    Eigen::Quaternionf orientation = Eigen::Quaternionf(rotational_matrix_OBB);
+    // Eigen::Vector3f dimensions = (max_point_OBB.getVector3fMap() - min_point_OBB.getVector3fMap()).cwiseAbs();
+    // compute the transform
+    Eigen::Matrix4f translation = Eigen::Matrix4f::Identity();
+    translation(0, 3) = position[0];
+    translation(1, 3) = position[1];
+    translation(2, 3) = position[2];
+    Eigen::Matrix4f rotation = Eigen::Matrix4f::Identity();
+    rotation.block<3, 3>(0, 0) = orientation.toRotationMatrix();
+    transform = translation * rotation;
+}
 
 int main(int argc, char** argv)
 {

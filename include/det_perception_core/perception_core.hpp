@@ -20,6 +20,8 @@
 #include <pcl/filters/passthrough.h>
 #include <pcl/filters/extract_indices.h>
 #include <pcl/features/moment_of_inertia_estimation.h>
+#include <pcl/io/vtk_lib_io.h>
+#include <pcl/common/centroid.h>
 #include <opencv2/opencv.hpp>
 #include <opencv2/calib3d.hpp>
 #include <sensor_msgs/PointCloud2.h>
@@ -117,6 +119,7 @@ public:
     std::vector<cv::Rect> expandBoundingBoxes(const std::vector<cv::Rect>& bboxes, const int& pixels);
     cv::Mat mergeMasks(const cv::Mat& foreground_mask, const std::vector<unsigned char>& masks, const int& width, 
     const int& height, const int& num_labels);
+    void loadMesh(const std::string& filename, pcl::PolygonMesh& mesh, Eigen::Matrix4f& transform);
 
 
 private:
@@ -125,6 +128,8 @@ private:
     int m_num_labels;
     int m_height;
     int m_width;
+    Eigen::Vector4f m_centroid;
+    Eigen::Matrix4f m_transform;
     tf::TransformBroadcaster m_br;
     std::vector<double> m_plane_limits;
     std::vector<cv::Vec3b> m_colors;
@@ -136,13 +141,13 @@ private:
     cv::Mat m_foreground_cloud_mask;
     cv::Mat m_image_labels;
     std::string m_background_image_path;
+    std::string m_stl_mesh_path;
     ros::NodeHandle m_nh;
     std::string m_lidar_topic;
     ros::ServiceClient m_infer_client;
     det_perception_core::Inference m_infer_srv;
     ros::Subscriber m_pointcloud_sub;
     ros::Subscriber m_rgb_image_sub;
-    // ros::Subscriber m_depth_image_sub;
     ros::Publisher m_cropped_cloud_pub;
     ros::Publisher m_processed_cloud_pub;
     ros::Publisher m_cluster_cloud_pub;
