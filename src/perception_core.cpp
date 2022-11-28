@@ -243,9 +243,7 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
         marker.scale.y = 1.0;
         marker.scale.z = 1.0;
         marker.color.a = 0.8;
-        // marker.color.r = m_colors[i % 6][0] / 255.0;
-        // marker.color.g = m_colors[i % 6][1] / 255.0;
-        // marker.color.b = m_colors[i % 6][2] / 255.0;
+        marker.mesh_use_embedded_materials = true;
         m_marker_pub.publish(marker);
     }
 
