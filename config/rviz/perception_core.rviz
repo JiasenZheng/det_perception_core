@@ -182,6 +182,8 @@ Visualization Manager:
           Value: true
         cluster_3:
           Value: true
+        cluster_4:
+          Value: true
         l515_aligned_depth_to_color_frame:
           Value: false
         l515_color_frame:
@@ -197,7 +199,7 @@ Visualization Manager:
       Marker Alpha: 1
       Marker Scale: 1
       Name: TF
-      Show Arrows: true
+      Show Arrows: false
       Show Axes: true
       Show Names: true
       Tree:
@@ -215,6 +217,8 @@ Visualization Manager:
                 {}
               cluster_3:
                 {}
+              cluster_4:
+                {}
           l515_color_frame:
             {}
           l515_depth_frame:
@@ -230,6 +234,8 @@ Visualization Manager:
         cluster_0: true
         cluster_1: true
         cluster_2: true
+        cluster_3: true
+        cluster_4: true
       Queue Size: 100
       Value: true
   Enabled: true
@@ -260,7 +266,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 1.3559889793395996
+      Distance: 2.669240713119507
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -276,9 +282,9 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: -1.0847985744476318
+      Pitch: -0.514799177646637
       Target Frame: <Fixed Frame>
-      Yaw: 3.113675594329834
+      Yaw: 3.173671245574951
     Saved: ~
 Window Geometry:
   Displays:

@@ -119,7 +119,8 @@ public:
     std::vector<cv::Rect> expandBoundingBoxes(const std::vector<cv::Rect>& bboxes, const int& pixels);
     cv::Mat mergeMasks(const cv::Mat& foreground_mask, const std::vector<unsigned char>& masks, const int& width, 
     const int& height, const int& num_labels);
-    void loadMesh(const std::string& filename, pcl::PolygonMesh& mesh, Eigen::Matrix4f& transform);
+    void loadMesh(const std::string& filename, pcl::PolygonMesh& mesh, Eigen::Matrix4f& transform, 
+    Eigen::Vector3f& dimensions);
 
 
 private:
@@ -128,7 +129,7 @@ private:
     int m_num_labels;
     int m_height;
     int m_width;
-    Eigen::Vector4f m_centroid;
+    Eigen::Vector3f m_dimensions;
     Eigen::Matrix4f m_transform;
     tf::TransformBroadcaster m_br;
     std::vector<double> m_plane_limits;

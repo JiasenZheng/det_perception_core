@@ -46,7 +46,9 @@ PerceptionCore::PerceptionCore(ros::NodeHandle nh): m_nh(nh)
     m_infer_srv.request.height = m_height;
     // load the mesh and compute the centroid of the mesh
     pcl::PolygonMesh mesh;
-    loadMesh(m_stl_mesh_path, mesh, m_transform);
+    loadMesh(m_stl_mesh_path, mesh, m_transform, m_dimensions);
+    // log dimensions
+    ROS_INFO_STREAM("Dimensions: " << m_dimensions[0] << " " << m_dimensions[1] << " " << m_dimensions[2]);
 }
 
 void PerceptionCore::run()
@@ -232,7 +234,8 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
         transform.setOrigin(tf::Vector3(position[0], position[1], position[2]));
         tf::Quaternion q(orientation.x(), orientation.y(), orientation.z(), orientation.w());
         transform.setRotation(q);
-        m_br.sendTransform(tf::StampedTransform(transform, msg->header.stamp, msg->header.frame_id, "cluster_" + std::to_string(i)));
+        m_br.sendTransform(tf::StampedTransform(transform, msg->header.stamp, msg->header.frame_id, 
+        "cluster_" + std::to_string(i)));
         // publish a marker
         visualization_msgs::Marker marker;
         marker.header.frame_id = msg->header.frame_id;
@@ -251,9 +254,12 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
         marker.pose.orientation.y = q2.y();
         marker.pose.orientation.z = q2.z();
         marker.pose.orientation.w = q2.w();
-        marker.scale.x = 1.0;
-        marker.scale.y = 1.0;
-        marker.scale.z = 1.0;
+        auto scale = std::max({dimensions[0], dimensions[1], dimensions[2]}) / 
+        std::max({m_dimensions[0], m_dimensions[1], m_dimensions[2]});
+        scale *= 0.90;
+        marker.scale.x = 1.0 * scale;
+        marker.scale.y = 1.0 * scale;
+        marker.scale.z = 1.0 * scale;
         marker.color.a = 0.8;
         marker.mesh_use_embedded_materials = true;
         m_marker_pub.publish(marker);
@@ -1019,7 +1025,8 @@ const int& width, const int& height, const int& num_labels) {
     return merged_mask;
 }
 
-void PerceptionCore::loadMesh(const std::string& filename, pcl::PolygonMesh& mesh, Eigen::Matrix4f& transform) {
+void PerceptionCore::loadMesh(const std::string& filename, pcl::PolygonMesh& mesh, Eigen::Matrix4f& transform,
+Eigen::Vector3f& dimensions) {
     // load mesh
     pcl::io::loadPolygonFileSTL(filename, mesh);
     // compute the bounding box
@@ -1035,7 +1042,7 @@ void PerceptionCore::loadMesh(const std::string& filename, pcl::PolygonMesh& mes
     feature_extractor.getOBB(min_point_OBB, max_point_OBB, position_OBB, rotational_matrix_OBB);
     Eigen::Vector3f position = position_OBB.getVector3fMap();
     Eigen::Quaternionf orientation = Eigen::Quaternionf(rotational_matrix_OBB);
-    // Eigen::Vector3f dimensions = (max_point_OBB.getVector3fMap() - min_point_OBB.getVector3fMap()).cwiseAbs();
+    dimensions = (max_point_OBB.getVector3fMap() - min_point_OBB.getVector3fMap()).cwiseAbs();
     // compute the transform
     Eigen::Matrix4f translation = Eigen::Matrix4f::Identity();
     translation(0, 3) = position[0];
