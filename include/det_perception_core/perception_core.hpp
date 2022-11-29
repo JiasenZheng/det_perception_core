@@ -133,6 +133,7 @@ private:
     Eigen::Vector3f m_dimensions;
     Eigen::Matrix4f m_transform;
     tf::TransformBroadcaster m_br;
+    tf::Transform m_table_tf;
     std::vector<double> m_plane_limits;
     std::vector<cv::Vec3b> m_colors;
     std::vector<cv::Rect> m_bboxes;

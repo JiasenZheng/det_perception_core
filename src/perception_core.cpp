@@ -75,20 +75,15 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
         planeSegmentation<pcl::PointXYZRGB>(ordered_cropped_cloud->cloud, 500, 0.01, inliers, coefficients);
         ROS_INFO_STREAM("Table detected!");
         m_plane_coefficients = coefficients;
-        // get the pose of the table
-        Eigen::Vector3f table_normal(coefficients->values[0], coefficients->values[1], coefficients->values[2]);
-        Eigen::Vector3f table_origin(coefficients->values[3], coefficients->values[4], coefficients->values[5]);
-        Eigen::Vector3f table_x_axis = table_normal.cross(Eigen::Vector3f::UnitZ());
-        Eigen::Vector3f table_y_axis = table_normal.cross(table_x_axis);
-        Eigen::Matrix3f table_rotation;
-        table_rotation.col(0) = table_x_axis;
-        table_rotation.col(1) = table_y_axis;
-        table_rotation.col(2) = table_normal;
-        Eigen::Quaternionf table_orientation(table_rotation);
-        Eigen::Affine3f table_pose;
-        table_pose.translation() = table_origin;
-        table_pose.linear() = table_rotation;
-        
+        // log the plane coefficients shape
+        ROS_INFO_STREAM("Plane coefficients: " << m_plane_coefficients->values[0] << ", " << m_plane_coefficients->values[1] << ", " << m_plane_coefficients->values[2] << ", " << m_plane_coefficients->values[3]);
+        // find the normal of the plane
+        Eigen::Vector3f normal(m_plane_coefficients->values[0], m_plane_coefficients->values[1], m_plane_coefficients->values[2]);
+        // convert the normal to quaternion
+        Eigen::Quaternionf q;
+        q.setFromTwoVectors(Eigen::Vector3f::UnitZ(), normal);
+        m_table_tf.setOrigin(tf::Vector3(0, 0, -m_plane_coefficients->values[3]));
+        m_table_tf.setRotation(tf::Quaternion(q.x(), q.y(), q.z(), q.w()));
         return;
     }
     // remove the table plane
@@ -221,6 +216,9 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
     colored_clustered_cloud_msg.header.frame_id = msg->header.frame_id;
     colored_clustered_cloud_msg.header.stamp = msg->header.stamp;
     m_cluster_cloud_pub.publish(colored_clustered_cloud_msg);
+
+    //publish the table tf
+    m_br.sendTransform(tf::StampedTransform(m_table_tf, msg->header.stamp, msg->header.frame_id, "table"));
 
     // get cluster oriented bounding boxes
     for (size_t i = 0; i < cluster_clouds.size(); i++)
