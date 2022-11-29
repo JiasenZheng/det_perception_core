@@ -31,7 +31,7 @@ Panels:
   - Class: rviz/Time
     Name: Time
     SyncMode: 0
-    SyncSource: cropped_cloud
+    SyncSource: ""
 Preferences:
   PromptSaveOnExit: true
 Toolbars:
@@ -97,7 +97,7 @@ Visualization Manager:
       Color: 255; 255; 255
       Color Transformer: RGB8
       Decay Time: 0
-      Enabled: true
+      Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
       Min Color: 0; 0; 0
@@ -112,7 +112,7 @@ Visualization Manager:
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
-      Value: true
+      Value: false
     - Alpha: 0.5
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
@@ -125,7 +125,7 @@ Visualization Manager:
       Color: 255; 255; 255
       Color Transformer: RGB8
       Decay Time: 0
-      Enabled: true
+      Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
       Min Color: 0; 0; 0
@@ -140,7 +140,7 @@ Visualization Manager:
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
-      Value: true
+      Value: false
     - Class: rviz/Image
       Enabled: false
       Image Topic: /l515/image/depth
@@ -178,12 +178,6 @@ Visualization Manager:
           Value: true
         cluster_1:
           Value: true
-        cluster_2:
-          Value: true
-        cluster_3:
-          Value: true
-        cluster_4:
-          Value: true
         l515_aligned_depth_to_color_frame:
           Value: false
         l515_color_frame:
@@ -196,6 +190,8 @@ Visualization Manager:
           Value: false
         l515_link:
           Value: true
+        table:
+          Value: false
       Marker Alpha: 1
       Marker Scale: 1
       Name: TF
@@ -213,11 +209,7 @@ Visualization Manager:
                 {}
               cluster_1:
                 {}
-              cluster_2:
-                {}
-              cluster_3:
-                {}
-              cluster_4:
+              table:
                 {}
           l515_color_frame:
             {}
@@ -233,14 +225,12 @@ Visualization Manager:
       Namespaces:
         cluster_0: true
         cluster_1: true
-        cluster_2: true
-        cluster_3: true
-        cluster_4: true
+        table: true
       Queue Size: 100
       Value: true
   Enabled: true
   Global Options:
-    Background Color: 177; 246; 80
+    Background Color: 138; 226; 52
     Default Light: true
     Fixed Frame: l515_link
     Frame Rate: 30
@@ -266,7 +256,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 2.0751779079437256
+      Distance: 2.05159068107605
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -282,9 +272,9 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: -0.8247977495193481
+      Pitch: -0.6097986102104187
       Target Frame: <Fixed Frame>
-      Yaw: 3.0636744499206543
+      Yaw: 3.1636524200439453
     Saved: ~
 Window Geometry:
   Displays:

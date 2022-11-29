@@ -130,6 +130,7 @@ private:
     int m_num_labels;
     int m_height;
     int m_width;
+    int m_num_clusters_prev;
     Eigen::Vector3f m_dimensions;
     Eigen::Matrix4f m_transform;
     tf::TransformBroadcaster m_br;

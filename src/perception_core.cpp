@@ -13,6 +13,7 @@ PerceptionCore::PerceptionCore(ros::NodeHandle nh): m_nh(nh)
     m_image_count = 100;
     m_height = 720;
     m_width = 1280;
+    m_num_clusters_prev = 0;
     // init list of colors
     m_colors.push_back(cv::Vec3b(255, 0, 0));
     m_colors.push_back(cv::Vec3b(0, 255, 0));
@@ -84,6 +85,9 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
         q.setFromTwoVectors(Eigen::Vector3f::UnitZ(), normal);
         m_table_tf.setOrigin(tf::Vector3(0, 0, -m_plane_coefficients->values[3]));
         m_table_tf.setRotation(tf::Quaternion(q.x(), q.y(), q.z(), q.w()));
+        // find the x y limits of the plane 
+        getPlaneLimits<pcl::PointXYZRGB>(ordered_cropped_cloud->cloud, inliers, m_plane_limits);
+
         return;
     }
     // remove the table plane
@@ -219,6 +223,29 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
 
     //publish the table tf
     m_br.sendTransform(tf::StampedTransform(m_table_tf, msg->header.stamp, msg->header.frame_id, "table"));
+    // publish the table marker
+    visualization_msgs::Marker table_marker;
+    table_marker.header.frame_id = msg->header.frame_id;
+    table_marker.header.stamp = msg->header.stamp;
+    table_marker.ns = "table";
+    table_marker.id = 0;
+    table_marker.type = visualization_msgs::Marker::CUBE;
+    table_marker.action = visualization_msgs::Marker::ADD;
+    table_marker.pose.position.x = m_table_tf.getOrigin().x();
+    table_marker.pose.position.y = m_table_tf.getOrigin().y();
+    table_marker.pose.position.z = m_table_tf.getOrigin().z();
+    table_marker.pose.orientation.x = m_table_tf.getRotation().x();
+    table_marker.pose.orientation.y = m_table_tf.getRotation().y();
+    table_marker.pose.orientation.z = m_table_tf.getRotation().z();
+    table_marker.pose.orientation.w = m_table_tf.getRotation().w();
+    table_marker.scale.x = std::abs(m_plane_limits[0] - m_plane_limits[1]);
+    table_marker.scale.y = std::abs(m_plane_limits[2] - m_plane_limits[3]);
+    table_marker.scale.z = 0.02;
+    table_marker.color.a = 1.0;
+    table_marker.color.r = 0.44;
+    table_marker.color.g = 0.33;
+    table_marker.color.b = 0.23;
+    m_marker_pub.publish(table_marker);
 
     // get cluster oriented bounding boxes
     for (size_t i = 0; i < cluster_clouds.size(); i++)
@@ -269,7 +296,18 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
         marker.mesh_use_embedded_materials = true;
         m_marker_pub.publish(marker);
     }
-
+    // delete the markers that are not used anymore
+    for (int i = cluster_clouds.size(); i < m_num_clusters_prev; i++)
+    {
+        visualization_msgs::Marker marker;
+        marker.header.frame_id = msg->header.frame_id;
+        marker.header.stamp = msg->header.stamp;
+        marker.ns = "cluster_" + std::to_string(i);
+        marker.id = 0;
+        marker.action = visualization_msgs::Marker::DELETE;
+        m_marker_pub.publish(marker);
+    }
+    m_num_clusters_prev = cluster_clouds.size();
 }
 
 void PerceptionCore::imageCallback(const sensor_msgs::ImageConstPtr& msg)
@@ -570,7 +608,7 @@ std::vector<double>& limits) {
     double max_y = std::numeric_limits<double>::min();
     double min_z = std::numeric_limits<double>::max();
     double max_z = std::numeric_limits<double>::min();
-    for (int i = 0; i < inliers->indices.size(); i++) {
+    for (size_t i = 0; i < inliers->indices.size(); i++) {
         int idx = inliers->indices[i];
         if (cloud->points[idx].x < min_x) {
             min_x = cloud->points[idx].x;
