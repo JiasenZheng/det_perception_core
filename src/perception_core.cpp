@@ -88,6 +88,32 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
         // find the x y limits of the plane 
         getPlaneLimits<pcl::PointXYZRGB>(ordered_cropped_cloud->cloud, inliers, m_plane_limits);
 
+        //publish the table tf
+        m_br.sendTransform(tf::StampedTransform(m_table_tf, msg->header.stamp, msg->header.frame_id, "table"));
+        // publish the table marker
+        visualization_msgs::Marker table_marker;
+        table_marker.header.frame_id = msg->header.frame_id;
+        table_marker.header.stamp = msg->header.stamp;
+        table_marker.ns = "table";
+        table_marker.id = 0;
+        table_marker.type = visualization_msgs::Marker::CUBE;
+        table_marker.action = visualization_msgs::Marker::ADD;
+        table_marker.pose.position.x = m_table_tf.getOrigin().x();
+        table_marker.pose.position.y = m_table_tf.getOrigin().y();
+        table_marker.pose.position.z = m_table_tf.getOrigin().z();
+        table_marker.pose.orientation.x = m_table_tf.getRotation().x();
+        table_marker.pose.orientation.y = m_table_tf.getRotation().y();
+        table_marker.pose.orientation.z = m_table_tf.getRotation().z();
+        table_marker.pose.orientation.w = m_table_tf.getRotation().w();
+        table_marker.scale.x = std::abs(m_plane_limits[0] - m_plane_limits[1]);
+        table_marker.scale.y = std::abs(m_plane_limits[2] - m_plane_limits[3]);
+        table_marker.scale.z = 0.02;
+        table_marker.color.a = 1.0;
+        table_marker.color.r = 0.44;
+        table_marker.color.g = 0.33;
+        table_marker.color.b = 0.23;
+        m_marker_pub.publish(table_marker);
+
         return;
     }
     // remove the table plane
@@ -104,12 +130,6 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
 
     // remove noise in the mask
     auto foreground_mask = denoiseMask(m_foreground_cloud_mask, 11); 
-    // cv_bridge::CvImage foreground_mask_msg2;
-    // foreground_mask_msg2.header.stamp = msg->header.stamp;
-    // foreground_mask_msg2.header.frame_id = msg->header.frame_id;
-    // foreground_mask_msg2.encoding = sensor_msgs::image_encodings::MONO8;
-    // foreground_mask_msg2.image = foreground_mask;
-    // m_processed_depth_image_pub.publish(foreground_mask_msg2.toImageMsg());
 
     // mask the ordered cloud
     auto ordered_masked_cloud = maskOrderedCloud<pcl::PointXYZRGB>(ordered_filtered_cloud, foreground_mask);
@@ -119,38 +139,14 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
     masked_cloud_msg.header.stamp = msg->header.stamp;
     m_processed_cloud_pub.publish(masked_cloud_msg);
 
-    ///////////////// do not need this for now ///////////////////////
-    // // connected component analysis
-    // imageCluster(foreground_mask, m_image_labels, m_num_labels, m_bboxes);
-
-    // // expand the bounding boxes
-    // auto expanded_bboxes = expandBoundingBoxes(m_bboxes, 20);
-
-    // // draw bounding boxes
-    // auto bounding_boxes_image = drawBboxes(m_raw_image, expanded_bboxes);
-    // cv_bridge::CvImage bounding_boxes_msg;
-    // bounding_boxes_msg.header.stamp = msg->header.stamp;
-    // bounding_boxes_msg.header.frame_id = msg->header.frame_id;
-    // bounding_boxes_msg.encoding = sensor_msgs::image_encodings::BGR8;
-    // bounding_boxes_msg.image = bounding_boxes_image;
-    // m_processed_depth_image_pub.publish(bounding_boxes_msg.toImageMsg());
-    /////////////////////////// end //////////////////////////////////
-
     int num_inferences = 0;
     std::vector<unsigned char> inference_masks;
 
     // auto start = std::chrono::high_resolution_clock::now();
     if (m_infer_client.call(m_infer_srv))
     {
-        // ROS_INFO_STREAM("Inference service called!");
         num_inferences = m_infer_srv.response.num_inferences;
-        // log data type of num_inferences
-        // ROS_INFO_STREAM("num_inferences data type: " << typeid(num_inferences).name());
-        // log number of inferences
-        // ROS_INFO_STREAM("Number of inferences: " << num_inferences);
         inference_masks = m_infer_srv.response.data;
-        // log data type of inference_masks
-        // ROS_INFO_STREAM("inference_masks data type: " << typeid(inference_masks).name());
         for (int i = 0; i < num_inferences; ++i) {
             // create a mask of bool
             cv::Mat mask = cv::Mat::zeros(m_height, m_width, CV_8UC1);
@@ -163,48 +159,15 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
                     }
                 }
             }
-            // cv_bridge::CvImage mask_msg;
-            // mask_msg.header.stamp = msg->header.stamp;
-            // mask_msg.header.frame_id = msg->header.frame_id;
-            // mask_msg.encoding = sensor_msgs::image_encodings::MONO8;
-            // mask_msg.image = mask;
-            // m_depth_image_pub.publish(mask_msg.toImageMsg());
         }
     }
     else
     {
         ROS_ERROR_STREAM("Failed to call inference service!");
     }
-    // auto end = std::chrono::high_resolution_clock::now();
-    // auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    // ROS_INFO_STREAM("Inference service call took: " << duration.count()/1000000.0 << " seconds");
 
     // merge foreground mask and inference masks
     cv::Mat merged_mask = mergeMasks(foreground_mask, inference_masks, m_width, m_height, num_inferences);
-    // log the max and min of the mask
-    // get the max num of cv::Mat
-    // double min, max;
-    // cv::minMaxLoc(merged_mask, &min, &max);
-    // log the max and min of the mask
-    // ROS_INFO_STREAM("max: " << max << ", min: " << min);
-    // // create a rgb image
-    // auto merged_rgb_mask = cv::Mat::zeros(m_height, m_width, CV_8UC3);
-    // for (int row = 0; row < m_height; ++row) {
-    //     for (int col = 0; col < m_width; ++col) {
-    //         if (merged_mask.at<uchar>(row, col) == 0) {
-    //             continue;
-    //         }
-    //         auto color_idx = merged_mask.at<uchar>(row, col) % 6;
-    //         merged_rgb_mask.at<cv::Vec3b>(row, col) = m_colors[color_idx];
-    //     }
-    // }
-    // cv_bridge::CvImage merged_rgb_mask_msg;
-    // merged_rgb_mask_msg.header.stamp = msg->header.stamp;
-    // merged_rgb_mask_msg.header.frame_id = msg->header.frame_id;
-    // merged_rgb_mask_msg.encoding = sensor_msgs::image_encodings::BGR8;
-    // merged_rgb_mask_msg.image = merged_rgb_mask;
-    // m_depth_image_pub.publish(merged_rgb_mask_msg.toImageMsg());
-
 
     // downsample foreground mask
     auto downsampled_mask = downsampleMask(merged_mask, 20);
@@ -220,32 +183,6 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
     colored_clustered_cloud_msg.header.frame_id = msg->header.frame_id;
     colored_clustered_cloud_msg.header.stamp = msg->header.stamp;
     m_cluster_cloud_pub.publish(colored_clustered_cloud_msg);
-
-    //publish the table tf
-    m_br.sendTransform(tf::StampedTransform(m_table_tf, msg->header.stamp, msg->header.frame_id, "table"));
-    // publish the table marker
-    visualization_msgs::Marker table_marker;
-    table_marker.header.frame_id = msg->header.frame_id;
-    table_marker.header.stamp = msg->header.stamp;
-    table_marker.ns = "table";
-    table_marker.id = 0;
-    table_marker.type = visualization_msgs::Marker::CUBE;
-    table_marker.action = visualization_msgs::Marker::ADD;
-    table_marker.pose.position.x = m_table_tf.getOrigin().x();
-    table_marker.pose.position.y = m_table_tf.getOrigin().y();
-    table_marker.pose.position.z = m_table_tf.getOrigin().z();
-    table_marker.pose.orientation.x = m_table_tf.getRotation().x();
-    table_marker.pose.orientation.y = m_table_tf.getRotation().y();
-    table_marker.pose.orientation.z = m_table_tf.getRotation().z();
-    table_marker.pose.orientation.w = m_table_tf.getRotation().w();
-    table_marker.scale.x = std::abs(m_plane_limits[0] - m_plane_limits[1]);
-    table_marker.scale.y = std::abs(m_plane_limits[2] - m_plane_limits[3]);
-    table_marker.scale.z = 0.02;
-    table_marker.color.a = 1.0;
-    table_marker.color.r = 0.44;
-    table_marker.color.g = 0.33;
-    table_marker.color.b = 0.23;
-    m_marker_pub.publish(table_marker);
 
     // get cluster oriented bounding boxes
     for (size_t i = 0; i < cluster_clouds.size(); i++)

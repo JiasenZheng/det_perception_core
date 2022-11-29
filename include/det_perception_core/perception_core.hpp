@@ -57,7 +57,6 @@ public:
     void run();
     void pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg);
     void imageCallback(const sensor_msgs::ImageConstPtr& msg);
-    // void depthImageCallback(const sensor_msgs::ImageConstPtr& msg);
     template <typename T>
     typename OrderedCloud<T>::Ptr shrinkOrderedCloud(const typename OrderedCloud<T>::Ptr ordered_cloud);
     template <typename T>
