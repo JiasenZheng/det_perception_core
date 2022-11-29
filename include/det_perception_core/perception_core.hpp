@@ -27,6 +27,7 @@
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/Image.h>
 #include <visualization_msgs/Marker.h>
+#include <geometry_msgs/Pose.h>
 #include <cv_bridge/cv_bridge.h>
 #include "det_perception_core/Inference.h"
 

@@ -47,8 +47,6 @@ PerceptionCore::PerceptionCore(ros::NodeHandle nh): m_nh(nh)
     // load the mesh and compute the centroid of the mesh
     pcl::PolygonMesh mesh;
     loadMesh(m_stl_mesh_path, mesh, m_transform, m_dimensions);
-    // log dimensions
-    ROS_INFO_STREAM("Dimensions: " << m_dimensions[0] << " " << m_dimensions[1] << " " << m_dimensions[2]);
 }
 
 void PerceptionCore::run()
@@ -70,7 +68,6 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
     cropped_msg.header.stamp = msg->header.stamp;
     m_cropped_cloud_pub.publish(cropped_msg);
 
-    // remove the table plane
     if (m_plane_coefficients == nullptr)
     {
         pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
@@ -78,13 +75,23 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
         planeSegmentation<pcl::PointXYZRGB>(ordered_cropped_cloud->cloud, 500, 0.01, inliers, coefficients);
         ROS_INFO_STREAM("Table detected!");
         m_plane_coefficients = coefficients;
-        // log inliers and coefficients
-        ROS_INFO_STREAM("Inliers: " << inliers->indices.size());
-        ROS_INFO_STREAM("Coefficients: " << coefficients->values[0] << " " << coefficients->values[1] << " " <<
-        coefficients->values[2] << " " << coefficients->values[3]);
-        m_plane_coefficients = coefficients;
+        // get the pose of the table
+        Eigen::Vector3f table_normal(coefficients->values[0], coefficients->values[1], coefficients->values[2]);
+        Eigen::Vector3f table_origin(coefficients->values[3], coefficients->values[4], coefficients->values[5]);
+        Eigen::Vector3f table_x_axis = table_normal.cross(Eigen::Vector3f::UnitZ());
+        Eigen::Vector3f table_y_axis = table_normal.cross(table_x_axis);
+        Eigen::Matrix3f table_rotation;
+        table_rotation.col(0) = table_x_axis;
+        table_rotation.col(1) = table_y_axis;
+        table_rotation.col(2) = table_normal;
+        Eigen::Quaternionf table_orientation(table_rotation);
+        Eigen::Affine3f table_pose;
+        table_pose.translation() = table_origin;
+        table_pose.linear() = table_rotation;
+        
         return;
     }
+    // remove the table plane
     auto ordered_filtered_cloud = removePlane<pcl::PointXYZRGB>(ordered_cropped_cloud, m_plane_coefficients, 0.01);
 
     // convert ordered cloud to mask
@@ -260,7 +267,7 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
         marker.scale.x = 1.0 * scale;
         marker.scale.y = 1.0 * scale;
         marker.scale.z = 1.0 * scale;
-        marker.color.a = 0.8;
+        marker.color.a = 1.0;
         marker.mesh_use_embedded_materials = true;
         m_marker_pub.publish(marker);
     }

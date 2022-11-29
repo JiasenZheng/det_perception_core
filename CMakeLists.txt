@@ -23,6 +23,7 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   cv_bridge
   image_transport
+  rviz_visual_tools
 )
 
 find_package(PCL REQUIRED)
@@ -137,6 +138,7 @@ catkin_package(
   sensor_msgs
   cv_bridge
   image_transport
+  rviz_visual_tools
 #  DEPENDS system_lib
 )
 
