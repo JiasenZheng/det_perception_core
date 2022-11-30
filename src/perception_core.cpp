@@ -8,9 +8,7 @@
 
 PerceptionCore::PerceptionCore(ros::NodeHandle nh): m_nh(nh)
 {
-    m_nh.param("margin_pixels", m_margin_pixels, 20);
     m_raw_image = cv::Mat::zeros(480, 640, CV_8UC3);
-    m_image_count = 100;
     m_height = 720;
     m_width = 1280;
     m_num_clusters_prev = 0;
@@ -25,6 +23,7 @@ PerceptionCore::PerceptionCore(ros::NodeHandle nh): m_nh(nh)
     m_stl_mesh_path = "/home/jiasen/det_ws/src/det_perception_core/meshes/nontextured.stl";
     m_foreground_image_mask = cv::Mat::zeros(m_height, m_width, CV_8UC1);
     m_foreground_cloud_mask = cv::Mat::zeros(m_height, m_width, CV_8UC1);
+    m_foreground_mask_prev = cv::Mat::zeros(m_height, m_width, CV_8UC1);
     m_background_image = cv::imread(m_background_image_path, cv::IMREAD_COLOR);
     m_lidar_topic = "/l515/depth_registered/points";
     m_pointcloud_sub = m_nh.subscribe(m_lidar_topic, 1, &PerceptionCore::pointcloudCallback, this);
@@ -76,10 +75,9 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
         planeSegmentation<pcl::PointXYZRGB>(ordered_cropped_cloud->cloud, 500, 0.01, inliers, coefficients);
         ROS_INFO_STREAM("Table detected!");
         m_plane_coefficients = coefficients;
-        // log the plane coefficients shape
-        ROS_INFO_STREAM("Plane coefficients: " << m_plane_coefficients->values[0] << ", " << m_plane_coefficients->values[1] << ", " << m_plane_coefficients->values[2] << ", " << m_plane_coefficients->values[3]);
         // find the normal of the plane
-        Eigen::Vector3f normal(m_plane_coefficients->values[0], m_plane_coefficients->values[1], m_plane_coefficients->values[2]);
+        Eigen::Vector3f normal(m_plane_coefficients->values[0], m_plane_coefficients->values[1], 
+        m_plane_coefficients->values[2]);
         // convert the normal to quaternion
         Eigen::Quaternionf q;
         q.setFromTwoVectors(Eigen::Vector3f::UnitZ(), normal);
@@ -131,6 +129,24 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
     // remove noise in the mask
     auto foreground_mask = denoiseMask(m_foreground_cloud_mask, 11); 
 
+    // image cluster the mask
+    cv::Mat labels;
+    int num_labels;
+    std::vector<cv::Rect> bboxes;
+    imageCluster(foreground_mask, labels, num_labels, bboxes);
+    // for (auto bbox: bboxes) {
+    //     auto cluster_diff = computeClusterDiff(m_foreground_mask_prev, foreground_mask, bbox);
+    //     ROS_INFO_STREAM("Cluster diff: " << cluster_diff);
+    // }
+    // state machine
+    std::vector<bool> diffs(num_labels, false);
+    bool need_inference = clusterDiffStateMachine(m_foreground_mask_prev, foreground_mask, bboxes, 0.1, diffs);
+    m_foreground_mask_prev = foreground_mask;
+
+    if (!need_inference) {
+        return;
+    }
+
     // mask the ordered cloud
     auto ordered_masked_cloud = maskOrderedCloud<pcl::PointXYZRGB>(ordered_filtered_cloud, foreground_mask);
     sensor_msgs::PointCloud2 masked_cloud_msg;
@@ -139,10 +155,10 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
     masked_cloud_msg.header.stamp = msg->header.stamp;
     m_processed_cloud_pub.publish(masked_cloud_msg);
 
+    // make an inference
     int num_inferences = 0;
     std::vector<unsigned char> inference_masks;
 
-    // auto start = std::chrono::high_resolution_clock::now();
     if (m_infer_client.call(m_infer_srv))
     {
         num_inferences = m_infer_srv.response.num_inferences;
@@ -225,7 +241,7 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
         marker.pose.orientation.w = q2.w();
         auto scale = std::max({dimensions[0], dimensions[1], dimensions[2]}) / 
         std::max({m_dimensions[0], m_dimensions[1], m_dimensions[2]});
-        scale *= 0.90;
+        // scale *= 0.90;
         marker.scale.x = 1.0 * scale;
         marker.scale.y = 1.0 * scale;
         marker.scale.z = 1.0 * scale;
@@ -433,7 +449,6 @@ const pcl::ModelCoefficients::Ptr coefficients, const double& distance_threshold
                 continue;
             }
             // set the point to be invalid if it is too close to the plane and the foreground mask is 0
-            // if (distance < distance_threshold && m_foreground_image_mask.at<uchar>(i + start_y, j + start_x) == 0) {
             if (distance < distance_threshold) {
                 cloud_filtered->points[idx].x = std::numeric_limits<float>::quiet_NaN();
                 cloud_filtered->points[idx].y = std::numeric_limits<float>::quiet_NaN();
@@ -1031,6 +1046,39 @@ Eigen::Vector3f& dimensions) {
     Eigen::Matrix4f rotation = Eigen::Matrix4f::Identity();
     rotation.block<3, 3>(0, 0) = orientation.toRotationMatrix();
     transform = translation * rotation;
+}
+
+double PerceptionCore::computeClusterDiff(const cv::Mat &prev_mask, const cv::Mat &curr_mask, const cv::Rect &bbox)
+{
+    // compute the difference between the previous and current cluster masks
+    int diff_pixels = 0;
+    int total_pixels = 0;
+    for (int i = bbox.y; i < bbox.y + bbox.height; i++) {
+    for (int j = bbox.x; j < bbox.x + bbox.width; j++) {
+        if (prev_mask.at<uchar>(i, j) != curr_mask.at<uchar>(i, j)) {
+            diff_pixels++;
+        }
+        if (curr_mask.at<uchar>(i, j) != 0) {
+            total_pixels++;
+        }
+    }
+    }
+    return (double)diff_pixels / (double)total_pixels;
+}
+
+bool PerceptionCore::clusterDiffStateMachine(const cv::Mat &prev_mask, const cv::Mat &curr_mask, 
+const std::vector<cv::Rect> &bboxes, const double &threshold, std::vector<bool> &diffs) {
+    bool need_inference = false;
+    for (size_t i = 0; i < bboxes.size(); i++) {
+        double diff = computeClusterDiff(prev_mask, curr_mask, bboxes[i]);
+        if (diff > threshold) {
+            need_inference = true;
+            diffs[i] = true;
+        } else {
+            diffs[i] = false;
+        }
+    }
+    return need_inference;
 }
 
 int main(int argc, char** argv)
