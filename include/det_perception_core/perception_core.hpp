@@ -124,6 +124,10 @@ public:
     double computeClusterDiff(const cv::Mat &prev_mask, const cv::Mat &curr_mask, const cv::Rect &bbox);
     bool clusterDiffStateMachine(const cv::Mat &prev_mask, const cv::Mat &curr_mask, 
     const std::vector<cv::Rect> &bboxes, const double &threshold, std::vector<bool> &diffs);
+    cv::Mat updateForegroundMask(const cv::Mat &foreground_mask, const std::vector<bool> &diffs,
+                                 const std::vector<cv::Rect> &bboxes);
+    cv::Mat updateForegroundMask(const cv::Mat &foreground_mask, const std::vector<bool> &diffs,
+                                 const cv::Mat &labels);
 
 private:
     int m_height;

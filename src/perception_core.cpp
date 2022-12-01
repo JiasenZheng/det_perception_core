@@ -134,14 +134,22 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
     int num_labels;
     std::vector<cv::Rect> bboxes;
     imageCluster(foreground_mask, labels, num_labels, bboxes);
-    // for (auto bbox: bboxes) {
-    //     auto cluster_diff = computeClusterDiff(m_foreground_mask_prev, foreground_mask, bbox);
-    //     ROS_INFO_STREAM("Cluster diff: " << cluster_diff);
-    // }
+
     // state machine
     std::vector<bool> diffs(num_labels, false);
     bool need_inference = clusterDiffStateMachine(m_foreground_mask_prev, foreground_mask, bboxes, 0.1, diffs);
     m_foreground_mask_prev = foreground_mask;
+
+    // // update foreground mask
+    auto moved_foreground_mask = updateForegroundMask(foreground_mask, diffs, labels);
+
+    // publish the foreground mask
+    cv_bridge::CvImage moved_foreground_mask_msg;
+    moved_foreground_mask_msg.header.stamp = msg->header.stamp;
+    moved_foreground_mask_msg.header.frame_id = msg->header.frame_id;
+    moved_foreground_mask_msg.encoding = sensor_msgs::image_encodings::MONO8;
+    moved_foreground_mask_msg.image = moved_foreground_mask;
+    m_depth_image_pub.publish(moved_foreground_mask_msg.toImageMsg());
 
     if (!need_inference) {
         return;
@@ -149,11 +157,6 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
 
     // mask the ordered cloud
     auto ordered_masked_cloud = maskOrderedCloud<pcl::PointXYZRGB>(ordered_filtered_cloud, foreground_mask);
-    sensor_msgs::PointCloud2 masked_cloud_msg;
-    pcl::toROSMsg(*ordered_masked_cloud->cloud, masked_cloud_msg);
-    masked_cloud_msg.header.frame_id = msg->header.frame_id;
-    masked_cloud_msg.header.stamp = msg->header.stamp;
-    m_processed_cloud_pub.publish(masked_cloud_msg);
 
     // make an inference
     int num_inferences = 0;
@@ -191,14 +194,14 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
     // get cluster clouds
     auto cluster_clouds = getClusterClouds(ordered_masked_cloud, downsampled_mask, num_inferences);
 
-    // colorize the cluster clouds
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_clustered_cloud = colorizeClusters<pcl::PointXYZ>(cluster_clouds,
-    m_colors);
-    sensor_msgs::PointCloud2 colored_clustered_cloud_msg;
-    pcl::toROSMsg(*colored_clustered_cloud, colored_clustered_cloud_msg);
-    colored_clustered_cloud_msg.header.frame_id = msg->header.frame_id;
-    colored_clustered_cloud_msg.header.stamp = msg->header.stamp;
-    m_cluster_cloud_pub.publish(colored_clustered_cloud_msg);
+    // // colorize the cluster clouds
+    // pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_clustered_cloud = colorizeClusters<pcl::PointXYZ>(cluster_clouds,
+    // m_colors);
+    // sensor_msgs::PointCloud2 colored_clustered_cloud_msg;
+    // pcl::toROSMsg(*colored_clustered_cloud, colored_clustered_cloud_msg);
+    // colored_clustered_cloud_msg.header.frame_id = msg->header.frame_id;
+    // colored_clustered_cloud_msg.header.stamp = msg->header.stamp;
+    // m_cluster_cloud_pub.publish(colored_clustered_cloud_msg);
 
     // get cluster oriented bounding boxes
     for (size_t i = 0; i < cluster_clouds.size(); i++)
@@ -214,13 +217,13 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
         Tworld_center.block<3, 1>(0, 3) = position;
         auto Tcenter_origin = m_transform.inverse();
         auto Tworld_origin = Tworld_center * Tcenter_origin;
-        // publish a tf
-        tf::Transform transform;
-        transform.setOrigin(tf::Vector3(position[0], position[1], position[2]));
-        tf::Quaternion q(orientation.x(), orientation.y(), orientation.z(), orientation.w());
-        transform.setRotation(q);
-        m_br.sendTransform(tf::StampedTransform(transform, msg->header.stamp, msg->header.frame_id, 
-        "cluster_" + std::to_string(i)));
+        // // publish a tf
+        // tf::Transform transform;
+        // transform.setOrigin(tf::Vector3(position[0], position[1], position[2]));
+        // tf::Quaternion q(orientation.x(), orientation.y(), orientation.z(), orientation.w());
+        // transform.setRotation(q);
+        // m_br.sendTransform(tf::StampedTransform(transform, msg->header.stamp, msg->header.frame_id, 
+        // "cluster_" + std::to_string(i)));
         // publish a marker
         visualization_msgs::Marker marker;
         marker.header.frame_id = msg->header.frame_id;
@@ -1079,6 +1082,39 @@ const std::vector<cv::Rect> &bboxes, const double &threshold, std::vector<bool> 
         }
     }
     return need_inference;
+}
+
+cv::Mat PerceptionCore::updateForegroundMask(const cv::Mat &foreground_mask, const std::vector<bool> &diffs,
+const std::vector<cv::Rect> &bboxes) {
+    // update the foreground mask
+    cv::Mat updated_foreground_mask = foreground_mask.clone();
+    for (size_t i = 0; i < bboxes.size(); i++) {
+        if (diffs[i] == false) {
+            for (int j = bboxes[i].y; j < bboxes[i].y + bboxes[i].height; j++) {
+            for (int k = bboxes[i].x; k < bboxes[i].x + bboxes[i].width; k++) {
+                updated_foreground_mask.at<uchar>(j, k) = 0;
+            }
+            }
+        }
+    }
+    return updated_foreground_mask;
+}
+
+cv::Mat PerceptionCore::updateForegroundMask(const cv::Mat &foreground_mask, const std::vector<bool> &diffs,
+const cv::Mat &labels) {
+    // update the foreground mask
+    cv::Mat updated_foreground_mask = foreground_mask.clone();
+    for (int i = 0; i < labels.rows; i++) {
+    for (int j = 0; j < labels.cols; j++) {
+        if (labels.at<int>(i, j) == 0) {
+            continue;
+        }
+        if (diffs[labels.at<int>(i, j) - 1] == false) {
+            updated_foreground_mask.at<uchar>(i, j) = 0;
+        }
+    }
+    }
+    return updated_foreground_mask;
 }
 
 int main(int argc, char** argv)

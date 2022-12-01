@@ -142,7 +142,7 @@ Visualization Manager:
       Use rainbow: true
       Value: false
     - Class: rviz/Image
-      Enabled: true
+      Enabled: false
       Image Topic: /l515/color/image_raw
       Max Value: 1
       Median window: 5
@@ -152,10 +152,10 @@ Visualization Manager:
       Queue Size: 2
       Transport Hint: raw
       Unreliable: false
-      Value: true
+      Value: false
     - Class: rviz/Image
-      Enabled: false
-      Image Topic: /l515/image/depth/processed
+      Enabled: true
+      Image Topic: /l515/image/depth
       Max Value: 1
       Median window: 5
       Min Value: 0
@@ -164,38 +164,12 @@ Visualization Manager:
       Queue Size: 2
       Transport Hint: raw
       Unreliable: false
-      Value: false
+      Value: true
     - Class: rviz/TF
-      Enabled: true
+      Enabled: false
       Frame Timeout: 1
       Frames:
         All Enabled: false
-        camera_confidence_frame:
-          Value: false
-        camera_confidence_optical_frame:
-          Value: false
-        cluster_0:
-          Value: true
-        cluster_1:
-          Value: true
-        cluster_2:
-          Value: true
-        cluster_3:
-          Value: true
-        l515_aligned_depth_to_color_frame:
-          Value: false
-        l515_color_frame:
-          Value: false
-        l515_color_optical_frame:
-          Value: false
-        l515_depth_frame:
-          Value: false
-        l515_depth_optical_frame:
-          Value: false
-        l515_link:
-          Value: true
-        table:
-          Value: false
       Marker Alpha: 1
       Marker Scale: 1
       Name: TF
@@ -203,29 +177,9 @@ Visualization Manager:
       Show Axes: true
       Show Names: true
       Tree:
-        l515_link:
-          camera_confidence_frame:
-            camera_confidence_optical_frame:
-              {}
-          l515_aligned_depth_to_color_frame:
-            l515_color_optical_frame:
-              cluster_0:
-                {}
-              cluster_1:
-                {}
-              cluster_2:
-                {}
-              cluster_3:
-                {}
-              table:
-                {}
-          l515_color_frame:
-            {}
-          l515_depth_frame:
-            l515_depth_optical_frame:
-              {}
+        {}
       Update Interval: 0
-      Value: true
+      Value: false
     - Class: rviz/Marker
       Enabled: true
       Marker Topic: /l515/marker
@@ -234,7 +188,6 @@ Visualization Manager:
         cluster_0: true
         cluster_1: true
         cluster_2: true
-        cluster_3: true
         table: true
       Queue Size: 100
       Value: true
@@ -266,7 +219,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 2.308887243270874
+      Distance: 2.0106663703918457
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -282,9 +235,9 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: -0.4997992515563965
+      Pitch: -0.3547995090484619
       Target Frame: <Fixed Frame>
-      Yaw: 3.2136545181274414
+      Yaw: 2.8736555576324463
     Saved: ~
 Window Geometry:
   Displays:
