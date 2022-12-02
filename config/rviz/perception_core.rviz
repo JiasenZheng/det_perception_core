@@ -155,7 +155,7 @@ Visualization Manager:
       Value: false
     - Class: rviz/Image
       Enabled: true
-      Image Topic: /l515/image/depth
+      Image Topic: /l515/color/image_raw
       Max Value: 1
       Median window: 5
       Min Value: 0
@@ -235,9 +235,9 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: -0.3547995090484619
+      Pitch: -0.18479959666728973
       Target Frame: <Fixed Frame>
-      Yaw: 2.8736555576324463
+      Yaw: 2.9786574840545654
     Saved: ~
 Window Geometry:
   Displays:

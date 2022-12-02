@@ -1117,6 +1117,23 @@ const cv::Mat &labels) {
     return updated_foreground_mask;
 }
 
+cv::Mat PerceptionCore::splitMask(const cv::Mat &foreground_mask, const std::vector<bool> &diffs, 
+const cv::Mat &labels) {
+    // split the foreground mask
+    cv::Mat split_foreground_mask = foreground_mask.clone();
+    for (int i = 0; i < labels.rows; i++) {
+    for (int j = 0; j < labels.cols; j++) {
+        if (labels.at<int>(i, j) == 0) {
+            continue;
+        }
+        if (diffs[labels.at<int>(i, j) - 1] == false) {
+            split_foreground_mask.at<uchar>(i, j) *= -1;
+        }
+    }
+    }
+    return split_foreground_mask;
+}
+
 int main(int argc, char** argv)
 {
     ros::init(argc, argv, "perception_core");

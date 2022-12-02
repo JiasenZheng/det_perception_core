@@ -128,6 +128,7 @@ public:
                                  const std::vector<cv::Rect> &bboxes);
     cv::Mat updateForegroundMask(const cv::Mat &foreground_mask, const std::vector<bool> &diffs,
                                  const cv::Mat &labels);
+    cv::Mat splitMask(const cv::Mat &foreground_mask, const std::vector<bool> &diffs, const cv::Mat &labels);
 
 private:
     int m_height;
