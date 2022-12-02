@@ -50,6 +50,13 @@ struct OrderedCloud
     typedef boost::shared_ptr<OrderedCloud<T>> Ptr;
 };
 
+struct Cluster
+{
+    std::vector<int> pixel_center;
+    tf::Transform pose;
+    double scale;
+}
+
 class PerceptionCore
 {
 public:
@@ -141,6 +148,7 @@ private:
     tf::Transform m_table_tf;
     std::vector<double> m_plane_limits;
     std::vector<cv::Vec3b> m_colors;
+    std::vector<Cluster> m_clusters_prev;
     pcl::ModelCoefficients::Ptr m_plane_coefficients;
     cv::Mat m_raw_image;
     cv::Mat m_background_image;

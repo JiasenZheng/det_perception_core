@@ -244,12 +244,14 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
         marker.pose.orientation.w = q2.w();
         auto scale = std::max({dimensions[0], dimensions[1], dimensions[2]}) / 
         std::max({m_dimensions[0], m_dimensions[1], m_dimensions[2]});
-        // scale *= 0.90;
+        scale *= 0.90;
         marker.scale.x = 1.0 * scale;
         marker.scale.y = 1.0 * scale;
         marker.scale.z = 1.0 * scale;
         marker.color.a = 1.0;
         marker.mesh_use_embedded_materials = true;
+        // // marker frame lock
+        // marker.frame_locked = true;
         m_marker_pub.publish(marker);
     }
     // delete the markers that are not used anymore
