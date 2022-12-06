@@ -52,10 +52,10 @@ struct OrderedCloud
 
 struct Cluster
 {
-    std::vector<int> pixel_center;
+    std::pair<int, int> pixel_center;
     tf::Transform pose;
     double scale;
-}
+};
 
 class PerceptionCore
 {
@@ -131,11 +131,15 @@ public:
     double computeClusterDiff(const cv::Mat &prev_mask, const cv::Mat &curr_mask, const cv::Rect &bbox);
     bool clusterDiffStateMachine(const cv::Mat &prev_mask, const cv::Mat &curr_mask, 
     const std::vector<cv::Rect> &bboxes, const double &threshold, std::vector<bool> &diffs);
+    cv::Mat computeStationaryMovingAreas(const cv::Mat &prev_mask, const cv::Mat &curr_mask,
+    const std::vector<cv::Rect> &bboxes, const double &threshold);
     cv::Mat updateForegroundMask(const cv::Mat &foreground_mask, const std::vector<bool> &diffs,
                                  const std::vector<cv::Rect> &bboxes);
     cv::Mat updateForegroundMask(const cv::Mat &foreground_mask, const std::vector<bool> &diffs,
                                  const cv::Mat &labels);
     cv::Mat splitMask(const cv::Mat &foreground_mask, const std::vector<bool> &diffs, const cv::Mat &labels);
+    std::vector<std::pair<int, int>> computeClusterPixelCentroids(const cv::Mat &merged_mask, 
+    const int &num_inferences);
 
 private:
     int m_height;

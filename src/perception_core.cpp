@@ -19,6 +19,8 @@ PerceptionCore::PerceptionCore(ros::NodeHandle nh): m_nh(nh)
     m_colors.push_back(cv::Vec3b(255, 255, 0));
     m_colors.push_back(cv::Vec3b(255, 0, 255));
     m_colors.push_back(cv::Vec3b(0, 255, 255));
+    // init m_clusters_prev as an empty vector
+    m_clusters_prev = std::vector<Cluster>();
     m_background_image_path = "/home/jiasen/det_ws/src/det_perception_core/image/background.png";
     m_stl_mesh_path = "/home/jiasen/det_ws/src/det_perception_core/meshes/nontextured.stl";
     m_foreground_image_mask = cv::Mat::zeros(m_height, m_width, CV_8UC1);
@@ -135,33 +137,31 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
     std::vector<cv::Rect> bboxes;
     imageCluster(foreground_mask, labels, num_labels, bboxes);
 
-    // state machine
-    std::vector<bool> diffs(num_labels, false);
-    bool need_inference = clusterDiffStateMachine(m_foreground_mask_prev, foreground_mask, bboxes, 0.1, diffs);
+    // // state machine
+    // std::vector<bool> diffs(num_labels, false);
+    // bool need_inference = clusterDiffStateMachine(m_foreground_mask_prev, foreground_mask, bboxes, 0.15, diffs);
+    // m_foreground_mask_prev = foreground_mask;
+
+    // if (!need_inference) {
+    //     return;
+    // }
+
+    // new state machine
+    auto stationary_moving_areas = computeStationaryMovingAreas(m_foreground_mask_prev, foreground_mask, bboxes, 0.15);
     m_foreground_mask_prev = foreground_mask;
 
-    // // update foreground mask
-    auto moved_foreground_mask = updateForegroundMask(foreground_mask, diffs, labels);
-
-    // publish the foreground mask
-    cv_bridge::CvImage moved_foreground_mask_msg;
-    moved_foreground_mask_msg.header.stamp = msg->header.stamp;
-    moved_foreground_mask_msg.header.frame_id = msg->header.frame_id;
-    moved_foreground_mask_msg.encoding = sensor_msgs::image_encodings::MONO8;
-    moved_foreground_mask_msg.image = moved_foreground_mask;
-    m_depth_image_pub.publish(moved_foreground_mask_msg.toImageMsg());
-
-    if (!need_inference) {
-        return;
-    }
-
-    // mask the ordered cloud
-    auto ordered_masked_cloud = maskOrderedCloud<pcl::PointXYZRGB>(ordered_filtered_cloud, foreground_mask);
+    // // publish stationary_moving_areas
+    // cv_bridge::CvImage stationary_moving_areas_msg;
+    // stationary_moving_areas_msg.header.stamp = msg->header.stamp;
+    // stationary_moving_areas_msg.header.frame_id = msg->header.frame_id;
+    // stationary_moving_areas_msg.encoding = sensor_msgs::image_encodings::MONO8;
+    // stationary_moving_areas_msg.image = stationary_moving_areas;
+    // m_depth_image_pub.publish(stationary_moving_areas_msg.toImageMsg());
 
     // make an inference
     int num_inferences = 0;
     std::vector<unsigned char> inference_masks;
-
+    
     if (m_infer_client.call(m_infer_srv))
     {
         num_inferences = m_infer_srv.response.num_inferences;
@@ -185,14 +185,17 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
         ROS_ERROR_STREAM("Failed to call inference service!");
     }
 
-    // merge foreground mask and inference masks
-    cv::Mat merged_mask = mergeMasks(foreground_mask, inference_masks, m_width, m_height, num_inferences);
+    // merge foreground mask and inference mask
+    auto merged_mask = mergeMasks(foreground_mask, inference_masks, m_width, m_height, num_inferences);
+    
+    // compute the pixel centroid of the cluster
+    auto centroids = computeClusterPixelCentroids(merged_mask, num_inferences);
 
     // downsample foreground mask
     auto downsampled_mask = downsampleMask(merged_mask, 20);
 
     // get cluster clouds
-    auto cluster_clouds = getClusterClouds(ordered_masked_cloud, downsampled_mask, num_inferences);
+    auto cluster_clouds = getClusterClouds(ordered_filtered_cloud, downsampled_mask, num_inferences);
 
     // // colorize the cluster clouds
     // pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_clustered_cloud = colorizeClusters<pcl::PointXYZ>(cluster_clouds,
@@ -202,58 +205,109 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
     // colored_clustered_cloud_msg.header.frame_id = msg->header.frame_id;
     // colored_clustered_cloud_msg.header.stamp = msg->header.stamp;
     // m_cluster_cloud_pub.publish(colored_clustered_cloud_msg);
-
+    std::vector<Cluster> clusters_curr;
     // get cluster oriented bounding boxes
-    for (size_t i = 0; i < cluster_clouds.size(); i++)
+    for (size_t i = 0; i < centroids.size(); i++)
     {
-        auto cluster_cloud = cluster_clouds[i];
-        Eigen::Vector3f position;
-        Eigen::Quaternionf orientation;
-        Eigen::Vector3f dimensions;
-        computeOBB<pcl::PointXYZ>(cluster_cloud, position, orientation, dimensions);
-        // compute the homogeneous transformation matrix
-        Eigen::Matrix4f Tworld_center = Eigen::Matrix4f::Identity();
-        Tworld_center.block<3, 3>(0, 0) = orientation.toRotationMatrix();
-        Tworld_center.block<3, 1>(0, 3) = position;
-        auto Tcenter_origin = m_transform.inverse();
-        auto Tworld_origin = Tworld_center * Tcenter_origin;
-        // // publish a tf
-        // tf::Transform transform;
-        // transform.setOrigin(tf::Vector3(position[0], position[1], position[2]));
-        // tf::Quaternion q(orientation.x(), orientation.y(), orientation.z(), orientation.w());
-        // transform.setRotation(q);
-        // m_br.sendTransform(tf::StampedTransform(transform, msg->header.stamp, msg->header.frame_id, 
-        // "cluster_" + std::to_string(i)));
-        // publish a marker
-        visualization_msgs::Marker marker;
-        marker.header.frame_id = msg->header.frame_id;
-        marker.header.stamp = msg->header.stamp;
-        marker.ns = "cluster_" + std::to_string(i);
-        marker.id = 0;
-        marker.type = visualization_msgs::Marker::MESH_RESOURCE;
-        marker.mesh_resource = "package://det_perception_core/meshes/textured.dae";
-        marker.action = visualization_msgs::Marker::ADD;
-        marker.pose.position.x = Tworld_origin(0, 3);
-        marker.pose.position.y = Tworld_origin(1, 3);
-        marker.pose.position.z = Tworld_origin(2, 3);
-        // convert the rotation matrix to quaternion
-        Eigen::Quaternionf q2(Tworld_origin.block<3, 3>(0, 0));
-        marker.pose.orientation.x = q2.x();
-        marker.pose.orientation.y = q2.y();
-        marker.pose.orientation.z = q2.z();
-        marker.pose.orientation.w = q2.w();
-        auto scale = std::max({dimensions[0], dimensions[1], dimensions[2]}) / 
-        std::max({m_dimensions[0], m_dimensions[1], m_dimensions[2]});
-        scale *= 0.90;
-        marker.scale.x = 1.0 * scale;
-        marker.scale.y = 1.0 * scale;
-        marker.scale.z = 1.0 * scale;
-        marker.color.a = 1.0;
-        marker.mesh_use_embedded_materials = true;
-        // // marker frame lock
-        // marker.frame_locked = true;
-        m_marker_pub.publish(marker);
+        auto centroid = centroids[i];
+        if (stationary_moving_areas.at<uchar>(centroid.first, centroid.second) == 127) {
+            // find the associated cluster
+            int closest_cluster_idx = -1;
+            float min_dist = std::numeric_limits<float>::max();
+            for (size_t j = 0; j < m_clusters_prev.size(); j++) {
+                auto cluster_prev = m_clusters_prev[j];
+                auto centroid_prev = cluster_prev.pixel_center;
+                float dist = std::sqrt(std::pow(centroid.first - centroid_prev.first, 2) + std::pow(centroid.second - centroid_prev.second, 2));
+                if (dist < min_dist) {
+                    min_dist = dist;
+                    closest_cluster_idx = j;
+                }
+            }
+            auto associated_cluster = m_clusters_prev[closest_cluster_idx];
+            tf::Transform pose = associated_cluster.pose;
+            auto scale = associated_cluster.scale;
+            visualization_msgs::Marker marker;
+            marker.header.frame_id = msg->header.frame_id;
+            marker.header.stamp = msg->header.stamp;
+            marker.ns = "cluster_" + std::to_string(i);
+            marker.id = 0;
+            marker.type = visualization_msgs::Marker::MESH_RESOURCE;
+            marker.mesh_resource = "package://det_perception_core/meshes/textured.dae";
+            marker.action = visualization_msgs::Marker::ADD;
+            marker.pose.position.x = pose.getOrigin().x();
+            marker.pose.position.y = pose.getOrigin().y();
+            marker.pose.position.z = pose.getOrigin().z();
+            marker.pose.orientation.x = pose.getRotation().x();
+            marker.pose.orientation.y = pose.getRotation().y();
+            marker.pose.orientation.z = pose.getRotation().z();
+            marker.pose.orientation.w = pose.getRotation().w();
+            marker.scale.x = 1.0 * scale;
+            marker.scale.y = 1.0 * scale;
+            marker.scale.z = 1.0 * scale;
+            marker.color.a = 1.0;
+            marker.mesh_use_embedded_materials = true;
+            m_marker_pub.publish(marker);
+            clusters_curr.push_back(associated_cluster);
+        }
+        else {
+            auto cluster_cloud = cluster_clouds[i];
+            Eigen::Vector3f position;
+            Eigen::Quaternionf orientation;
+            Eigen::Vector3f dimensions;
+            computeOBB<pcl::PointXYZ>(cluster_cloud, position, orientation, dimensions);
+            // compute the homogeneous transformation matrix
+            Eigen::Matrix4f Tworld_center = Eigen::Matrix4f::Identity();
+            Tworld_center.block<3, 3>(0, 0) = orientation.toRotationMatrix();
+            Tworld_center.block<3, 1>(0, 3) = position;
+            auto Tcenter_origin = m_transform.inverse();
+            auto Tworld_origin = Tworld_center * Tcenter_origin;
+            // // publish a tf
+            // tf::Transform transform;
+            // transform.setOrigin(tf::Vector3(position[0], position[1], position[2]));
+            // tf::Quaternion q(orientation.x(), orientation.y(), orientation.z(), orientation.w());
+            // transform.setRotation(q);
+            // m_br.sendTransform(tf::StampedTransform(transform, msg->header.stamp, msg->header.frame_id, 
+            // "cluster_" + std::to_string(i)));
+            // publish a marker
+            visualization_msgs::Marker marker;
+            marker.header.frame_id = msg->header.frame_id;
+            marker.header.stamp = msg->header.stamp;
+            marker.ns = "cluster_" + std::to_string(i);
+            marker.id = 0;
+            marker.type = visualization_msgs::Marker::MESH_RESOURCE;
+            marker.mesh_resource = "package://det_perception_core/meshes/textured.dae";
+            marker.action = visualization_msgs::Marker::ADD;
+            marker.pose.position.x = Tworld_origin(0, 3);
+            marker.pose.position.y = Tworld_origin(1, 3);
+            marker.pose.position.z = Tworld_origin(2, 3);
+            // convert the rotation matrix to quaternion
+            Eigen::Quaternionf q2(Tworld_origin.block<3, 3>(0, 0));
+            marker.pose.orientation.x = q2.x();
+            marker.pose.orientation.y = q2.y();
+            marker.pose.orientation.z = q2.z();
+            marker.pose.orientation.w = q2.w();
+            auto scale = std::max({dimensions[0], dimensions[1], dimensions[2]}) / 
+            std::max({m_dimensions[0], m_dimensions[1], m_dimensions[2]});
+            scale *= 0.90;
+            marker.scale.x = 1.0 * scale;
+            marker.scale.y = 1.0 * scale;    // init m_clusters_prev as an empty vector
+            marker.scale.z = 1.0 * scale;
+            marker.color.a = 1.0;
+            marker.mesh_use_embedded_materials = true;
+            m_marker_pub.publish(marker);
+            // save the cluster
+            Cluster cluster;
+            cluster.pixel_center = centroid;
+            tf::Transform pose;
+            pose.setOrigin(tf::Vector3(Tworld_origin(0, 3), Tworld_origin(1, 3), Tworld_origin(2, 3)));
+            tf::Quaternion q(q2.x(), q2.y(), q2.z(), q2.w());
+            pose.setRotation(q);
+            cluster.pose = pose;
+            cluster.scale = scale;
+            clusters_curr.push_back(cluster);
+        }
     }
+    m_clusters_prev = clusters_curr;
     // delete the markers that are not used anymore
     for (int i = cluster_clouds.size(); i < m_num_clusters_prev; i++)
     {
@@ -266,6 +320,122 @@ void PerceptionCore::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
         m_marker_pub.publish(marker);
     }
     m_num_clusters_prev = cluster_clouds.size();
+
+
+    /////////////////////////////   old code   /////////////////////////////
+    // // mask the ordered cloud
+    // auto ordered_masked_cloud = maskOrderedCloud<pcl::PointXYZRGB>(ordered_filtered_cloud, foreground_mask);
+
+    // // make an inference
+    // int num_inferences = 0;
+    // std::vector<unsigned char> inference_masks;
+
+    // if (m_infer_client.call(m_infer_srv))
+    // {
+    //     num_inferences = m_infer_srv.response.num_inferences;
+    //     inference_masks = m_infer_srv.response.data;
+    //     for (int i = 0; i < num_inferences; ++i) {
+    //         // create a mask of bool
+    //         cv::Mat mask = cv::Mat::zeros(m_height, m_width, CV_8UC1);
+    //         for (int row = 0; row < m_height; ++row) {
+    //             for (int col = 0; col < m_width; ++col) {
+    //                 auto idx = row * m_width + col;
+    //                 idx += i * m_width * m_height;
+    //                 if (inference_masks[idx] == true) {
+    //                     mask.at<uchar>(row, col) = 255;
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
+    // else
+    // {
+    //     ROS_ERROR_STREAM("Failed to call inference service!");
+    // }
+
+    // // merge foreground mask and inference masks
+    // cv::Mat merged_mask = mergeMasks(foreground_mask, inference_masks, m_width, m_height, num_inferences);
+
+    // // downsample foreground mask
+    // auto downsampled_mask = downsampleMask(merged_mask, 20);
+
+    // // get cluster clouds
+    // auto cluster_clouds = getClusterClouds(ordered_masked_cloud, downsampled_mask, num_inferences);
+
+    // // // colorize the cluster clouds
+    // // pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_clustered_cloud = colorizeClusters<pcl::PointXYZ>(cluster_clouds,
+    // // m_colors);
+    // // sensor_msgs::PointCloud2 colored_clustered_cloud_msg;
+    // // pcl::toROSMsg(*colored_clustered_cloud, colored_clustered_cloud_msg);
+    // // colored_clustered_cloud_msg.header.frame_id = msg->header.frame_id;
+    // // colored_clustered_cloud_msg.header.stamp = msg->header.stamp;
+    // // m_cluster_cloud_pub.publish(colored_clustered_cloud_msg);
+
+    // // get cluster oriented bounding boxes
+    // for (size_t i = 0; i < cluster_clouds.size(); i++)
+    // {
+    //     auto cluster_cloud = cluster_clouds[i];
+    //     Eigen::Vector3f position;
+    //     Eigen::Quaternionf orientation;
+    //     Eigen::Vector3f dimensions;
+    //     computeOBB<pcl::PointXYZ>(cluster_cloud, position, orientation, dimensions);
+    //     // compute the homogeneous transformation matrix
+    //     Eigen::Matrix4f Tworld_center = Eigen::Matrix4f::Identity();
+    //     Tworld_center.block<3, 3>(0, 0) = orientation.toRotationMatrix();
+    //     Tworld_center.block<3, 1>(0, 3) = position;
+    //     auto Tcenter_origin = m_transform.inverse();
+    //     auto Tworld_origin = Tworld_center * Tcenter_origin;
+    //     // // publish a tf
+    //     // tf::Transform transform;
+    //     // transform.setOrigin(tf::Vector3(position[0], position[1], position[2]));
+    //     // tf::Quaternion q(orientation.x(), orientation.y(), orientation.z(), orientation.w());
+    //     // transform.setRotation(q);
+    //     // m_br.sendTransform(tf::StampedTransform(transform, msg->header.stamp, msg->header.frame_id, 
+    //     // "cluster_" + std::to_string(i)));
+    //     // publish a marker
+    //     visualization_msgs::Marker marker;
+    //     marker.header.frame_id = msg->header.frame_id;
+    //     marker.header.stamp = msg->header.stamp;
+    //     marker.ns = "cluster_" + std::to_string(i);
+    //     marker.id = 0;
+    //     marker.type = visualization_msgs::Marker::MESH_RESOURCE;
+    //     marker.mesh_resource = "package://det_perception_core/meshes/textured.dae";
+    //     marker.action = visualization_msgs::Marker::ADD;
+    //     marker.pose.position.x = Tworld_origin(0, 3);
+    //     marker.pose.position.y = Tworld_origin(1, 3);
+    //     marker.pose.position.z = Tworld_origin(2, 3);
+    //     // convert the rotation matrix to quaternion
+    //     Eigen::Quaternionf q2(Tworld_origin.block<3, 3>(0, 0));
+    //     marker.pose.orientation.x = q2.x();
+    //     marker.pose.orientation.y = q2.y();
+    //     marker.pose.orientation.z = q2.z();
+    //     marker.pose.orientation.w = q2.w();
+    //     auto scale = std::max({dimensions[0], dimensions[1], dimensions[2]}) / 
+    //     std::max({m_dimensions[0], m_dimensions[1], m_dimensions[2]});
+    //     scale *= 0.90;
+    //     marker.scale.x = 1.0 * scale;
+    //     marker.scale.y = 1.0 * scale;    // init m_clusters_prev as an empty vector
+
+    //     marker.scale.z = 1.0 * scale;
+    //     marker.color.a = 1.0;
+    //     marker.mesh_use_embedded_materials = true;
+    //     // // marker frame lock
+    //     // marker.frame_locked = true;
+    //     m_marker_pub.publish(marker);
+    // }
+    // // delete the markers that are not used anymore
+    // for (int i = cluster_clouds.size(); i < m_num_clusters_prev; i++)
+    // {
+    //     visualization_msgs::Marker marker;
+    //     marker.header.frame_id = msg->header.frame_id;
+    //     marker.header.stamp = msg->header.stamp;
+    //     marker.ns = "cluster_" + std::to_string(i);
+    //     marker.id = 0;
+    //     marker.action = visualization_msgs::Marker::DELETE;
+    //     m_marker_pub.publish(marker);
+    // }
+    // m_num_clusters_prev = cluster_clouds.size();
+    /////////////////////////// end of old code ///////////////////////////
 }
 
 void PerceptionCore::imageCallback(const sensor_msgs::ImageConstPtr& msg)
@@ -1086,6 +1256,37 @@ const std::vector<cv::Rect> &bboxes, const double &threshold, std::vector<bool> 
     return need_inference;
 }
 
+cv::Mat PerceptionCore::computeStationaryMovingAreas(const cv::Mat &prev_mask, const cv::Mat &curr_mask,
+const std::vector<cv::Rect> &bboxes, const double &threshold) {
+    // compute the stationary moving areas
+    // empty == 0, stationary == 127, moving == 255
+    cv::Mat stationary_moving_areas = cv::Mat::zeros(prev_mask.rows, prev_mask.cols, CV_8UC1);
+    for (size_t i = 0; i < bboxes.size(); i++) {
+        double diff = computeClusterDiff(prev_mask, curr_mask, bboxes[i]);
+        if (diff > threshold) {
+            stationary_moving_areas(bboxes[i]) = 255;
+            // for (int j = bboxes[i].y; j < bboxes[i].y + bboxes[i].height; j++) {
+            // for (int k = bboxes[i].x; k < bboxes[i].x + bboxes[i].width; k++) {
+            //     if (prev_mask.at<uchar>(j, k) != 0) {
+            //         stationary_moving_areas.at<uchar>(j, k) = 255;
+            //     }
+            // }
+            // }
+        }
+        else {
+            stationary_moving_areas(bboxes[i]) = 127;
+            // for (int j = bboxes[i].y; j < bboxes[i].y + bboxes[i].height; j++) {
+            // for (int k = bboxes[i].x; k < bboxes[i].x + bboxes[i].width; k++) {
+            //     if (prev_mask.at<uchar>(j, k) != 0) {
+            //         stationary_moving_areas.at<uchar>(j, k) = 127;
+            //     }
+            // }
+            // }
+        }
+    }
+    return stationary_moving_areas;
+}
+
 cv::Mat PerceptionCore::updateForegroundMask(const cv::Mat &foreground_mask, const std::vector<bool> &diffs,
 const std::vector<cv::Rect> &bboxes) {
     // update the foreground mask
@@ -1134,6 +1335,28 @@ const cv::Mat &labels) {
     }
     }
     return split_foreground_mask;
+}
+
+std::vector<std::pair<int, int>> PerceptionCore::computeClusterPixelCentroids(const cv::Mat &merged_mask, 
+const int &num_inferences) {
+    // compute the centroids of the clusters
+    std::vector<std::pair<int, int>> centroids(num_inferences);
+    std::vector<int> num_pixels(num_inferences);
+    for (int i = 0; i < merged_mask.rows; i++) {
+    for (int j = 0; j < merged_mask.cols; j++) {
+        if (merged_mask.at<uchar>(i, j) == 0) {
+            continue;
+        }
+        centroids[merged_mask.at<uchar>(i, j) - 1].first += i;
+        centroids[merged_mask.at<uchar>(i, j) - 1].second += j;
+        num_pixels[merged_mask.at<uchar>(i, j) - 1]++;
+    }
+    }
+    for (int i = 0; i < num_inferences; i++) {
+        centroids[i].first /= num_pixels[i];
+        centroids[i].second /= num_pixels[i];
+    }
+    return centroids;
 }
 
 int main(int argc, char** argv)
