@@ -142,6 +142,18 @@ Visualization Manager:
       Use rainbow: true
       Value: true
     - Class: rviz/Image
+      Enabled: false
+      Image Topic: /l515/color/image_raw
+      Max Value: 1
+      Median window: 5
+      Min Value: 0
+      Name: Image
+      Normalize Range: true
+      Queue Size: 2
+      Transport Hint: raw
+      Unreliable: false
+      Value: false
+    - Class: rviz/Image
       Enabled: true
       Image Topic: /l515/color/image_raw
       Max Value: 1
@@ -153,18 +165,6 @@ Visualization Manager:
       Transport Hint: raw
       Unreliable: false
       Value: true
-    - Class: rviz/Image
-      Enabled: false
-      Image Topic: /l515/image/depth
-      Max Value: 1
-      Median window: 5
-      Min Value: 0
-      Name: Image
-      Normalize Range: true
-      Queue Size: 2
-      Transport Hint: raw
-      Unreliable: false
-      Value: false
     - Class: rviz/TF
       Enabled: false
       Frame Timeout: 1
@@ -189,6 +189,9 @@ Visualization Manager:
         cluster_1: true
         cluster_2: true
         cluster_3: true
+        cluster_4: true
+        cluster_5: true
+        cluster_6: true
         table: true
       Queue Size: 100
       Value: true
@@ -220,7 +223,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 1.6367160081863403
+      Distance: 1.8819736242294312
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -228,17 +231,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 1.2705780267715454
-        Y: -0.11102995276451111
-        Z: 0.2882988750934601
+        X: 1.3158349990844727
+        Y: -0.14568620920181274
+        Z: 0.1366458535194397
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: -0.5447993278503418
+      Pitch: -0.28979966044425964
       Target Frame: <Fixed Frame>
-      Yaw: 3.2286598682403564
+      Yaw: 3.0936553478240967
     Saved: ~
 Window Geometry:
   Displays:
